@@ -3,6 +3,10 @@
   "version": "0.1.1",
   "description": "Interactive Event Modeling visualizer CLI.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/craftell/em"
+  },
   "bin": {
     "emviz": "dist/index.js"
   },
