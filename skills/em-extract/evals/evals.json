@@ -1,0 +1,11 @@
+{
+  "skill_name": "em-extract",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use .understand-anything/knowledge-graph.json to draft an event model for an existing SaaS billing codebase.",
+      "expected_output": "Inspects graph shape, extracts candidate stories/slices/events with confidence labels, asks domain questions, and does not write YAML unless requested.",
+      "files": []
+    }
+  ]
+}

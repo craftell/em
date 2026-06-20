@@ -1,0 +1,60 @@
+slice: Start Subscription
+
+screen:
+  type: user
+  name: Plan Checkout
+  actors:
+    - Customer
+  reads:
+    - CustomerAccountForSubscriptionCheckout
+  executes:
+    - StartSubscription
+
+queries:
+  - name: CustomerAccountForSubscriptionCheckout
+    fields: |
+      customerId: uuid
+      email: string
+      existingSubscriptionStatus: enum
+    from_events:
+      - CustomerRegistered
+      - SubscriptionStarted
+      - PaymentCollected
+      - PaymentFailed
+
+commands:
+  - name: StartSubscription
+    fields: |
+      customerId: uuid
+      planId: string
+      paymentMethodId: string
+      amountCents: int
+    produces:
+      - SubscriptionStarted
+      - PaymentCollectionRequested
+
+gwt:
+  - name: Already subscribed
+    description: A customer with an active paid subscription cannot start the same plan again.
+    given:
+      - name: CustomerAccountForSubscriptionCheckout
+        type: query
+    when:
+      - name: StartSubscription
+        type: command
+    then:
+      - name: AlreadySubscribedError
+        type: error
+
+  - name: Missing payment method
+    description: Checkout is rejected when no payment method is attached to the customer.
+    given:
+      - name: CustomerAccountForSubscriptionCheckout
+        type: query
+    when:
+      - name: StartSubscription
+        type: command
+    then:
+      - name: MissingPaymentMethodError
+        type: error
+

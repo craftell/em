@@ -1,0 +1,23 @@
+{
+  "name": "em-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r --filter '!emviz' build && pnpm --filter emviz build",
+    "check": "pnpm build && pnpm -r check",
+    "test": "pnpm -r test",
+    "dev": "pnpm --filter @emviz/app dev",
+    "emviz": "pnpm --filter emviz start",
+    "release:dry": "pnpm install --frozen-lockfile && pnpm check && pnpm test && pnpm --filter emviz pack --dry-run",
+    "release:pack": "mkdir -p artifacts && pnpm --filter emviz pack --pack-destination ./artifacts",
+    "skills:sync": "node scripts/sync-skill-references.mjs",
+    "skills:validate": "python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-model && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-lint && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-extract"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.2",
+    "playwright": "1.61.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  },
+  "packageManager": "pnpm@10.30.0"
+}

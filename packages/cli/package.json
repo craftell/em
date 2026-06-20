@@ -1,0 +1,36 @@
+{
+  "name": "emviz",
+  "version": "0.1.0",
+  "description": "Interactive Event Modeling visualizer CLI.",
+  "type": "module",
+  "bin": {
+    "emviz": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepack": "pnpm --filter @emviz/parser build && pnpm --filter @emviz/graph build && pnpm --filter @emviz/validator build && pnpm --filter @emviz/app build && pnpm build",
+    "start": "node dist/index.js .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@emviz/graph": "workspace:*",
+    "@emviz/parser": "workspace:*",
+    "@emviz/validator": "workspace:*",
+    "esbuild": "0.27.7",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

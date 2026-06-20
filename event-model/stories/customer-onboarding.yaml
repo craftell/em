@@ -1,0 +1,6 @@
+name: Customer Onboarding
+description: A visitor registers, receives a welcome email, and sees their customer home.
+slices:
+  - event-model/features/customer-onboarding/register-customer/register-customer.slice.yaml
+  - event-model/features/customer-onboarding/send-welcome-email/send-welcome-email.slice.yaml
+  - event-model/features/customer-onboarding/view-customer-home/view-customer-home.slice.yaml

@@ -1,0 +1,27 @@
+{
+  "name": "@emviz/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "check": "tsc -b --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@emviz/parser": "workspace:*",
+    "@emviz/validator": "workspace:*",
+    "@vitejs/plugin-react": "4.7.0",
+    "@xyflow/react": "12.11.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "vite": "7.3.5"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vitest": "3.2.6"
+  }
+}

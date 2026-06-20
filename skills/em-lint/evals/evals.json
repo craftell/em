@@ -1,0 +1,11 @@
+{
+  "skill_name": "em-lint",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Lint an event model where a command produces an event missing from events.yaml and a screen reads a query not defined in its slice.",
+      "expected_output": "Reports schema/graph findings with file paths, including missing registry event and unresolved screen.reads reference, without editing files.",
+      "files": []
+    }
+  ]
+}

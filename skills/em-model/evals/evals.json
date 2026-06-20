@@ -1,0 +1,11 @@
+{
+  "skill_name": "em-model",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Model an e-commerce checkout flow with cart, discounts, Stripe payment, double-charge prevention, and inventory constraints. Use English and write event-model YAML under a fresh project.",
+      "expected_output": "Creates config if needed, writes slice YAML files, events.yaml, and story index files. Slices include command, view, translation, and automation examples with valid screen types, block-scalar fields, and no top-level events/external flags.",
+      "files": []
+    }
+  ]
+}

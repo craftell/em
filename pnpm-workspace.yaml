@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+minimumReleaseAge: 1440
+strictDepBuilds: true
+onlyBuiltDependencies:
+  - esbuild@0.27.7

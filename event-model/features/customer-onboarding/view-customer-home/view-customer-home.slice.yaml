@@ -1,0 +1,25 @@
+slice: View Customer Home
+
+screen:
+  type: user
+  name: Customer Home
+  actors:
+    - Customer
+  reads:
+    - CustomerHomeForCustomer
+
+queries:
+  - name: CustomerHomeForCustomer
+    fields: |
+      customerId: uuid
+      email: string
+      welcomeEmailStatus: enum
+      subscriptionStatus: enum
+    from_events:
+      - CustomerRegistered
+      - WelcomeEmailSent
+      - WelcomeEmailFailed
+      - SubscriptionStarted
+      - PaymentCollected
+      - PaymentFailed
+

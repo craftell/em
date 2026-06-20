@@ -1,0 +1,6 @@
+name: Subscription Checkout
+description: A registered customer starts a subscription, payment is collected, and the status is shown.
+slices:
+  - event-model/features/subscription-checkout/start-subscription/start-subscription.slice.yaml
+  - event-model/features/subscription-checkout/collect-payment/collect-payment.slice.yaml
+  - event-model/features/subscription-checkout/view-subscription-status/view-subscription-status.slice.yaml

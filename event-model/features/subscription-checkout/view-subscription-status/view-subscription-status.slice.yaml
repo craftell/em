@@ -1,0 +1,25 @@
+slice: View Subscription Status
+
+screen:
+  type: user
+  name: Subscription Status
+  actors:
+    - Customer
+    - Support Agent
+  reads:
+    - SubscriptionStatusForCustomerAccount
+
+queries:
+  - name: SubscriptionStatusForCustomerAccount
+    fields: |
+      subscriptionId: uuid
+      customerId: uuid
+      planId: string
+      paymentStatus: enum
+      latestFailureReason: string
+    from_events:
+      - SubscriptionStarted
+      - PaymentCollectionRequested
+      - PaymentCollected
+      - PaymentFailed
+

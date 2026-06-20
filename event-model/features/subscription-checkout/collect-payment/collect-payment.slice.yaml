@@ -1,0 +1,45 @@
+slice: Collect Payment
+
+screen:
+  type: system
+  name: Payment Collection Processor
+  reads:
+    - PendingPaymentCollectionsForBillingProcessor
+  executes:
+    - CollectPayment
+
+queries:
+  - name: PendingPaymentCollectionsForBillingProcessor
+    fields: |
+      subscriptionId: uuid
+      customerId: uuid
+      amountCents: int
+      paymentStatus: enum
+    from_events:
+      - PaymentCollectionRequested
+      - PaymentCollected
+      - PaymentFailed
+
+commands:
+  - name: CollectPayment
+    fields: |
+      subscriptionId: uuid
+      customerId: uuid
+      amountCents: int
+    produces:
+      - PaymentCollected
+      - PaymentFailed
+
+gwt:
+  - name: Card declined
+    description: The processor records a failed payment when the payment provider declines the card.
+    given:
+      - name: PendingPaymentCollectionsForBillingProcessor
+        type: query
+    when:
+      - name: CollectPayment
+        type: command
+    then:
+      - name: PaymentFailed
+        type: event
+

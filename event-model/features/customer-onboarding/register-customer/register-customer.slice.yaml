@@ -1,0 +1,52 @@
+slice: Register Customer
+
+screen:
+  type: user
+  name: Sign Up
+  actors:
+    - Visitor
+  reads:
+    - ExistingCustomerForRegistration
+  executes:
+    - RegisterCustomer
+
+queries:
+  - name: ExistingCustomerForRegistration
+    fields: |
+      email: string
+      exists: boolean
+    from_events:
+      - CustomerRegistered
+
+commands:
+  - name: RegisterCustomer
+    fields: |
+      email: string
+      password: string
+      marketingOptIn: boolean
+    produces:
+      - CustomerRegistered
+
+gwt:
+  - name: Duplicate email
+    description: A visitor cannot register with an email that already belongs to a customer.
+    given:
+      - name: ExistingCustomerForRegistration
+        type: query
+    when:
+      - name: RegisterCustomer
+        type: command
+    then:
+      - name: DuplicateEmailError
+        type: error
+
+  - name: Weak password
+    description: Registration is rejected when the password does not meet the password policy.
+    given: []
+    when:
+      - name: RegisterCustomer
+        type: command
+    then:
+      - name: WeakPasswordError
+        type: error
+

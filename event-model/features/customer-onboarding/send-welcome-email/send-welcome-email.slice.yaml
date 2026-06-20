@@ -1,0 +1,42 @@
+slice: Send Welcome Email
+
+screen:
+  type: system
+  name: Welcome Email Processor
+  reads:
+    - PendingWelcomeEmailsForWelcomeEmailProcessor
+  executes:
+    - SendWelcomeEmail
+
+queries:
+  - name: PendingWelcomeEmailsForWelcomeEmailProcessor
+    fields: |
+      customerId: uuid
+      email: string
+      hasWelcomeEmailBeenSent: boolean
+    from_events:
+      - CustomerRegistered
+      - WelcomeEmailSent
+
+commands:
+  - name: SendWelcomeEmail
+    fields: |
+      customerId: uuid
+      email: string
+    produces:
+      - WelcomeEmailSent
+      - WelcomeEmailFailed
+
+gwt:
+  - name: Delivery provider fails
+    description: The processor records the failed delivery when the email provider returns an error.
+    given:
+      - name: PendingWelcomeEmailsForWelcomeEmailProcessor
+        type: query
+    when:
+      - name: SendWelcomeEmail
+        type: command
+    then:
+      - name: WelcomeEmailFailed
+        type: event
+

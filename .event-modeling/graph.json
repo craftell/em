@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 1,
+  "model": {
+    "id": "sample_saas_lifecycle",
+    "name": "Sample SaaS Lifecycle"
+  },
+  "sources": {
+    "events": "event-model/events.yaml",
+    "stories": [
+      "event-model/stories/**/*.yaml"
+    ],
+    "slices": [
+      "event-model/features/**/*.slice.yaml"
+    ]
+  },
+  "nodes": {
+    "cmd_collect_payment": {
+      "type": "command",
+      "selector": {
+        "slice": "Collect Payment",
+        "name": "CollectPayment"
+      }
+    },
+    "cmd_register_customer": {
+      "type": "command",
+      "selector": {
+        "slice": "Register Customer",
+        "name": "RegisterCustomer"
+      }
+    },
+    "cmd_send_welcome_email": {
+      "type": "command",
+      "selector": {
+        "slice": "Send Welcome Email",
+        "name": "SendWelcomeEmail"
+      }
+    },
+    "cmd_start_subscription": {
+      "type": "command",
+      "selector": {
+        "slice": "Start Subscription",
+        "name": "StartSubscription"
+      }
+    },
+    "evt_customer_registered": {
+      "type": "event",
+      "selector": {
+        "name": "CustomerRegistered"
+      }
+    },
+    "evt_payment_collected": {
+      "type": "event",
+      "selector": {
+        "name": "PaymentCollected"
+      }
+    },
+    "evt_payment_collection_requested": {
+      "type": "event",
+      "selector": {
+        "name": "PaymentCollectionRequested"
+      }
+    },
+    "evt_payment_failed": {
+      "type": "event",
+      "selector": {
+        "name": "PaymentFailed"
+      }
+    },
+    "evt_subscription_started": {
+      "type": "event",
+      "selector": {
+        "name": "SubscriptionStarted"
+      }
+    },
+    "evt_welcome_email_failed": {
+      "type": "event",
+      "selector": {
+        "name": "WelcomeEmailFailed"
+      }
+    },
+    "evt_welcome_email_sent": {
+      "type": "event",
+      "selector": {
+        "name": "WelcomeEmailSent"
+      }
+    },
+    "qry_customer_account_for_subscription_checkout": {
+      "type": "query",
+      "selector": {
+        "slice": "Start Subscription",
+        "name": "CustomerAccountForSubscriptionCheckout"
+      }
+    },
+    "qry_customer_home_for_customer": {
+      "type": "query",
+      "selector": {
+        "slice": "View Customer Home",
+        "name": "CustomerHomeForCustomer"
+      }
+    },
+    "qry_existing_customer_for_registration": {
+      "type": "query",
+      "selector": {
+        "slice": "Register Customer",
+        "name": "ExistingCustomerForRegistration"
+      }
+    },
+    "qry_pending_payment_collections_for_billing_processor": {
+      "type": "query",
+      "selector": {
+        "slice": "Collect Payment",
+        "name": "PendingPaymentCollectionsForBillingProcessor"
+      }
+    },
+    "qry_pending_welcome_emails_for_welcome_email_processor": {
+      "type": "query",
+      "selector": {
+        "slice": "Send Welcome Email",
+        "name": "PendingWelcomeEmailsForWelcomeEmailProcessor"
+      }
+    },
+    "qry_subscription_status_for_customer_account": {
+      "type": "query",
+      "selector": {
+        "slice": "View Subscription Status",
+        "name": "SubscriptionStatusForCustomerAccount"
+      }
+    },
+    "scr_customer_home": {
+      "type": "screen",
+      "selector": {
+        "slice": "View Customer Home"
+      }
+    },
+    "scr_payment_collection_processor": {
+      "type": "screen",
+      "selector": {
+        "slice": "Collect Payment"
+      }
+    },
+    "scr_plan_checkout": {
+      "type": "screen",
+      "selector": {
+        "slice": "Start Subscription"
+      }
+    },
+    "scr_sign_up": {
+      "type": "screen",
+      "selector": {
+        "slice": "Register Customer"
+      }
+    },
+    "scr_subscription_status": {
+      "type": "screen",
+      "selector": {
+        "slice": "View Subscription Status"
+      }
+    },
+    "scr_welcome_email_processor": {
+      "type": "screen",
+      "selector": {
+        "slice": "Send Welcome Email"
+      }
+    },
+    "slc_collect_payment": {
+      "type": "slice",
+      "selector": {
+        "slice": "Collect Payment"
+      }
+    },
+    "slc_register_customer": {
+      "type": "slice",
+      "selector": {
+        "slice": "Register Customer"
+      }
+    },
+    "slc_send_welcome_email": {
+      "type": "slice",
+      "selector": {
+        "slice": "Send Welcome Email"
+      }
+    },
+    "slc_start_subscription": {
+      "type": "slice",
+      "selector": {
+        "slice": "Start Subscription"
+      }
+    },
+    "slc_view_customer_home": {
+      "type": "slice",
+      "selector": {
+        "slice": "View Customer Home"
+      }
+    },
+    "slc_view_subscription_status": {
+      "type": "slice",
+      "selector": {
+        "slice": "View Subscription Status"
+      }
+    },
+    "story_customer_onboarding": {
+      "type": "story",
+      "selector": {
+        "name": "Customer Onboarding"
+      }
+    },
+    "story_subscription_checkout": {
+      "type": "story",
+      "selector": {
+        "name": "Subscription Checkout"
+      }
+    }
+  }
+}

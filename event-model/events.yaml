@@ -1,0 +1,57 @@
+events:
+  CustomerRegistered:
+    fields: |
+      customerId: uuid
+      email: string
+      registeredAt: datetime
+    description: A customer account was created.
+
+  WelcomeEmailSent:
+    fields: |
+      customerId: uuid
+      email: string
+      sentAt: datetime
+    description: The onboarding welcome email was delivered.
+
+  WelcomeEmailFailed:
+    fields: |
+      customerId: uuid
+      email: string
+      reason: string
+      failedAt: datetime
+    description: The onboarding welcome email could not be delivered.
+
+  SubscriptionStarted:
+    fields: |
+      subscriptionId: uuid
+      customerId: uuid
+      planId: string
+      startedAt: datetime
+    description: The customer started a paid subscription.
+
+  PaymentCollectionRequested:
+    fields: |
+      subscriptionId: uuid
+      customerId: uuid
+      amountCents: int
+      requestedAt: datetime
+    description: Payment collection was requested for a new subscription.
+
+  PaymentCollected:
+    fields: |
+      paymentId: uuid
+      subscriptionId: uuid
+      customerId: uuid
+      amountCents: int
+      collectedAt: datetime
+    description: Payment was successfully collected for a subscription.
+
+  PaymentFailed:
+    fields: |
+      subscriptionId: uuid
+      customerId: uuid
+      amountCents: int
+      reason: string
+      failedAt: datetime
+    description: Payment collection failed for a subscription.
+
