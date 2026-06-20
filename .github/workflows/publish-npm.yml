@@ -27,6 +27,15 @@ jobs:
       - run: corepack enable
       - run: corepack prepare pnpm@10.30.0 --activate
 
+      - name: Verify tag matches package version
+        run: |
+          package_version="$(node -p "require('./packages/cli/package.json').version")"
+          tag_version="${GITHUB_REF_NAME#emviz-v}"
+          if [ "$package_version" != "$tag_version" ]; then
+            echo "Tag version ($tag_version) does not match emviz package version ($package_version)." >&2
+            exit 1
+          fi
+
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm test
@@ -35,3 +44,21 @@ jobs:
       - run: pnpm --filter emviz pack --pack-destination ./artifacts
 
       - run: npm stage publish ./artifacts/emviz-*.tgz --access public --provenance
+
+      - name: Print staged approval instructions
+        run: |
+          {
+            echo "## emviz staged publish"
+            echo ""
+            echo "The package has been staged on npm. Review and approve it with:"
+            echo ""
+            echo '```sh'
+            echo "npm install -g npm@latest"
+            echo "npm stage list emviz"
+            echo "npm stage view <stage-id>"
+            echo "npm stage download <stage-id>"
+            echo "npm stage approve <stage-id>"
+            echo "npm view emviz version"
+            echo "npx emviz@${GITHUB_REF_NAME#emviz-v} --help"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

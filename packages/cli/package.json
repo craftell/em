@@ -3,6 +3,16 @@
   "version": "0.1.1",
   "description": "Interactive Event Modeling visualizer CLI.",
   "type": "module",
+  "keywords": [
+    "event-modeling",
+    "event-model",
+    "visualizer",
+    "cli"
+  ],
+  "homepage": "https://github.com/craftell/em",
+  "bugs": {
+    "url": "https://github.com/craftell/em/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/craftell/em"

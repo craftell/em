@@ -10,6 +10,9 @@
     "emviz": "pnpm --filter emviz start",
     "release:dry": "pnpm install --frozen-lockfile && pnpm check && pnpm test && pnpm --filter emviz pack --dry-run",
     "release:pack": "mkdir -p artifacts && pnpm --filter emviz pack --pack-destination ./artifacts",
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major",
     "skills:sync": "node scripts/sync-skill-references.mjs",
     "skills:validate": "python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-model && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-lint && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-extract"
   },
