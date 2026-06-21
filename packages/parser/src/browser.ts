@@ -149,9 +149,12 @@ function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<E
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const eventNodeIds = new Map<string, string>();
+  const storyNodeIds = new Map<string, string>();
 
   for (const story of project.stories) {
-    nodes.push({ id: storyId(story.name), type: "story", label: story.name, sourcePath: story.path, description: story.description });
+    const id = storyId(story.path);
+    storyNodeIds.set(story.name, id);
+    nodes.push({ id, type: "story", label: story.name, sourcePath: story.path, description: story.description });
   }
 
   for (const event of project.events) {
@@ -161,11 +164,14 @@ function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<E
   }
 
   for (const slice of project.slices) {
-    const currentSliceId = sliceId(slice.title);
-    const currentScreenId = screenId(slice.title, slice.screen.name);
+    const currentSliceId = sliceId(slice.path);
+    const currentScreenId = screenId(slice.path);
     const screenType = slice.screen.type === "system" ? "processor" : "screen";
     nodes.push({ id: currentSliceId, type: "slice", label: slice.title, storyName: slice.storyName, sliceTitle: slice.title, sourcePath: slice.path, raw: slice.raw });
-    if (slice.storyName) edges.push({ id: edgeId("story-slice", storyId(slice.storyName), currentSliceId), kind: "story-slice", source: storyId(slice.storyName), target: currentSliceId });
+    if (slice.storyName) {
+      const currentStoryId = storyNodeIds.get(slice.storyName) ?? storyId(slice.storyName);
+      edges.push({ id: edgeId("story-slice", currentStoryId, currentSliceId), kind: "story-slice", source: currentStoryId, target: currentSliceId });
+    }
     nodes.push({ id: currentScreenId, type: screenType, label: slice.screen.name ?? (slice.screen.type === "system" ? "Processor" : "Screen"), storyName: slice.storyName, sliceTitle: slice.title, sourcePath: slice.path, actors: slice.screen.actors, screenType: slice.screen.type, raw: slice.raw });
     edges.push({ id: edgeId("slice-screen", currentSliceId, currentScreenId), kind: "slice-screen", source: currentSliceId, target: currentScreenId });
 

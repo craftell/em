@@ -185,10 +185,13 @@ function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<E
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const eventNodeIds = new Map<string, string>();
+  const storyNodeIds = new Map<string, string>();
 
   for (const story of project.stories) {
+    const id = storyId(story.path);
+    storyNodeIds.set(story.name, id);
     nodes.push({
-      id: storyId(story.name),
+      id,
       type: "story",
       label: story.name,
       sourcePath: story.path,
@@ -211,8 +214,8 @@ function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<E
   }
 
   for (const slice of project.slices) {
-    const currentSliceId = sliceId(slice.title);
-    const currentScreenId = screenId(slice.title, slice.screen.name);
+    const currentSliceId = sliceId(slice.path);
+    const currentScreenId = screenId(slice.path);
     const screenType = slice.screen.type === "system" ? "processor" : "screen";
 
     nodes.push({
@@ -226,10 +229,11 @@ function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<E
     });
 
     if (slice.storyName) {
+      const currentStoryId = storyNodeIds.get(slice.storyName) ?? storyId(slice.storyName);
       edges.push({
-        id: edgeId("story-slice", storyId(slice.storyName), currentSliceId),
+        id: edgeId("story-slice", currentStoryId, currentSliceId),
         kind: "story-slice",
-        source: storyId(slice.storyName),
+        source: currentStoryId,
         target: currentSliceId
       });
     }
