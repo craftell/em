@@ -73,9 +73,16 @@ const nodeTypes = {
 
 type EdgeRoute = {
   kind?: string;
-  route?: "semantic" | "same-slice-read" | "cross-story-read";
+  route?: "semantic" | "same-slice-read" | "event-read";
   active?: boolean;
 };
+
+function positionVector(position: Position): { x: number; y: number } {
+  if (position === Position.Top) return { x: 0, y: -1 };
+  if (position === Position.Right) return { x: 1, y: 0 };
+  if (position === Position.Bottom) return { x: 0, y: 1 };
+  return { x: -1, y: 0 };
+}
 
 function eventModelPath({
   sourceX,
@@ -91,6 +98,7 @@ function eventModelPath({
   const dy = targetY - sourceY;
   const verticalBend = Math.max(56, Math.min(180, Math.abs(dy) * 0.42));
   const horizontalBend = Math.max(70, Math.min(180, Math.abs(dx) * 0.38));
+  const bend = Math.max(72, Math.min(180, Math.max(Math.abs(dx), Math.abs(dy)) * 0.38));
 
   if (route?.route === "same-slice-read") {
     const sourceDirection = sourcePosition === Position.Top ? -1 : 1;
@@ -99,10 +107,10 @@ function eventModelPath({
     return `M ${sourceX},${sourceY} C ${sourceX},${sourceY + sourceDirection * lift} ${targetX},${targetY + targetDirection * lift} ${targetX},${targetY}`;
   }
 
-  if (route?.route === "cross-story-read") {
-    const sourceDirection = sourcePosition === Position.Top ? -1 : 1;
-    const targetDirection = targetPosition === Position.Top ? -1 : 1;
-    return `M ${sourceX},${sourceY} C ${sourceX},${sourceY + sourceDirection * verticalBend} ${targetX},${targetY + targetDirection * verticalBend} ${targetX},${targetY}`;
+  if (route?.route === "event-read") {
+    const sourceVector = positionVector(sourcePosition);
+    const targetVector = positionVector(targetPosition);
+    return `M ${sourceX},${sourceY} C ${sourceX + sourceVector.x * bend},${sourceY + sourceVector.y * bend} ${targetX + targetVector.x * bend},${targetY + targetVector.y * bend} ${targetX},${targetY}`;
   }
 
   if (sourcePosition === Position.Bottom || sourcePosition === Position.Top) {

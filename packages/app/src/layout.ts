@@ -93,7 +93,7 @@ type Rect = {
 };
 
 type Side = "top" | "right" | "bottom" | "left";
-type RouteKind = "semantic" | "same-slice-read" | "cross-story-read";
+type RouteKind = "semantic" | "same-slice-read" | "event-read";
 
 function semanticSides(edgeKind: string): { sourceSide: Side; targetSide: Side } {
   if (edgeKind === "event-query") return { sourceSide: "top", targetSide: "bottom" };
@@ -118,23 +118,19 @@ function routedSides(
   }
 
   const isCrossSliceEventRead = edgeKind === "event-query" && source?.sliceTitle !== target?.sliceTitle;
-  if (isCrossSliceEventRead && source?.storyName && source.storyName === target?.storyName) {
-    return { sourceSide: "bottom", targetSide: "top", route: "cross-story-read" };
-  }
+  if (!isCrossSliceEventRead || !sourceRect || !targetRect) return { ...semantic, route: "semantic" };
 
-  const isCrossStoryEventRead =
-    edgeKind === "event-query" &&
-    target?.storyName &&
-    source?.storyName !== target.storyName &&
-    sourceRect &&
-    targetRect;
-
-  if (!isCrossStoryEventRead || !sourceRect || !targetRect) return { ...semantic, route: "semantic" };
-
+  const sourceCenterX = sourceRect.x + sourceRect.width / 2;
   const sourceCenterY = sourceRect.y + sourceRect.height / 2;
+  const targetCenterX = targetRect.x + targetRect.width / 2;
   const targetCenterY = targetRect.y + targetRect.height / 2;
-  if (targetCenterY > sourceCenterY) return { sourceSide: "bottom", targetSide: "top", route: "cross-story-read" };
-  return { sourceSide: "top", targetSide: "bottom", route: "cross-story-read" };
+  const isSameStory = source?.storyName && source.storyName === target?.storyName;
+
+  return {
+    sourceSide: isSameStory || targetCenterY >= sourceCenterY ? "bottom" : "top",
+    targetSide: targetCenterX >= sourceCenterX ? "left" : "right",
+    route: "event-read"
+  };
 }
 
 export function toFlow(
