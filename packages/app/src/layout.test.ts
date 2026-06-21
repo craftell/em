@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildFieldFlows } from "./fieldFlow";
 import { toFlow } from "./layout";
 import type { EventModelProject } from "./types";
 
@@ -170,5 +171,25 @@ describe("toFlow slice row layout", () => {
     expect(gwtCases[0]?.position.y ?? 0).toBeGreaterThan(event?.position.y ?? 0);
     expect((gwtCases[0]?.position.y ?? 0) + 170).toBeLessThanOrEqual((slice?.position.y ?? 0) + Number(slice?.style?.height ?? 0));
     expect(Math.abs((gwtCases[1]?.position.x ?? 0) - (gwtCases[0]?.position.x ?? 0))).toBeGreaterThanOrEqual(318);
+  });
+});
+
+describe("toFlow field flow edge data", () => {
+  it("passes field flow data through command-event edges", () => {
+    const project = forwardCrossSliceProject();
+    const command = project.nodes.find((node) => node.id === "command_start_checkout");
+    const event = project.nodes.find((node) => node.id === "event_checkout_started");
+    if (command) command.fields = "customerId: string\nplanId: string";
+    if (event) event.fields = "customerId: string\nstatus: string";
+
+    const fieldFlows = buildFieldFlows(project);
+    const flow = toFlow(project, undefined, { edgeFieldFlows: fieldFlows });
+    const edge = flow.edges.find((candidate) => candidate.id === "command_event");
+
+    expect(edge?.data?.fieldFlow).toMatchObject({
+      sharedFieldNames: ["customerId"],
+      visibleFieldNames: ["customerId"],
+      remainingCount: 0
+    });
   });
 });

@@ -16,6 +16,8 @@ queries:
       customerId: uuid
       email: string
       existingSubscriptionStatus: enum
+      activePlanId: string
+      lastPaymentStatus: enum
     from_events:
       - CustomerRegistered
       - SubscriptionStarted
@@ -29,6 +31,7 @@ commands:
       planId: string
       paymentMethodId: string
       amountCents: int
+      checkoutSessionId: uuid
     produces:
       - SubscriptionStarted
       - PaymentCollectionRequested
@@ -57,4 +60,3 @@ gwt:
     then:
       - name: MissingPaymentMethodError
         type: error
-

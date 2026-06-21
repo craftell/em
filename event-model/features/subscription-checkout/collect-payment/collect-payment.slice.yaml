@@ -13,7 +13,10 @@ queries:
     fields: |
       subscriptionId: uuid
       customerId: uuid
+      planId: string
+      paymentMethodId: string
       amountCents: int
+      checkoutSessionId: uuid
       paymentStatus: enum
     from_events:
       - PaymentCollectionRequested
@@ -25,7 +28,9 @@ commands:
     fields: |
       subscriptionId: uuid
       customerId: uuid
+      paymentMethodId: string
       amountCents: int
+      checkoutSessionId: uuid
     produces:
       - PaymentCollected
       - PaymentFailed
@@ -42,4 +47,3 @@ gwt:
     then:
       - name: PaymentFailed
         type: event
-

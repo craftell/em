@@ -1,5 +1,5 @@
 import { MarkerType, type Edge, type Node, Position } from "@xyflow/react";
-import type { EventModelProject, ProjectNode } from "./types";
+import type { EventModelProject, FieldFlow, ProjectNode } from "./types";
 
 const STORY_X = 180;
 const STORY_Y = 80;
@@ -235,7 +235,15 @@ function routedSides(
 export function toFlow(
   project: EventModelProject,
   selectedId?: string,
-  options: { scope?: VisibilityScope; focusedStory?: string; edgeDetail?: EdgeDetail; focusedEdgeIds?: Set<string> } = {}
+  options: {
+    scope?: VisibilityScope;
+    focusedStory?: string;
+    edgeDetail?: EdgeDetail;
+    focusedEdgeIds?: Set<string>;
+    edgeFieldFlows?: Map<string, FieldFlow>;
+    selectedFieldName?: string;
+    onSelectField?: (fieldName: string) => void;
+  } = {}
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
   const storyIndexes = storyIndex(project);
   const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
@@ -395,7 +403,14 @@ export function toFlow(
       type: "eventModelEdge",
       sourceHandle: `${sourceSide}-source`,
       targetHandle: `${targetSide}-target`,
-      data: { kind: edge.kind, route, active },
+      data: {
+        kind: edge.kind,
+        route,
+        active,
+        fieldFlow: options.edgeFieldFlows?.get(edge.id),
+        selectedFieldName: options.selectedFieldName,
+        onSelectField: options.onSelectField
+      },
       markerEnd: { type: MarkerType.ArrowClosed, color: active ? "#111827" : edgeColor(edge.kind) },
       label: options.edgeDetail === "verbose" ? edge.label : undefined,
       className: active ? "edge edge-active" : "edge",

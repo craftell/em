@@ -32,6 +32,17 @@ export type ProjectEdge = {
   label?: string;
 };
 
+export type FieldFlow = {
+  sourceFieldNames: string[];
+  targetFieldNames: string[];
+  sharedFieldNames: string[];
+  derivedFieldNames: string[];
+  visibleFieldNames: string[];
+  remainingCount: number;
+  sourceMissingFields: boolean;
+  targetMissingFields: boolean;
+};
+
 export type ProjectStory = {
   name: string;
   description: string;

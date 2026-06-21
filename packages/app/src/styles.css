@@ -319,7 +319,9 @@ pre {
 }
 
 .connection-button {
-  padding: 6px 8px;
+  display: grid;
+  gap: 7px;
+  padding: 8px 9px;
   border: 1px solid #d8dee8;
   border-radius: 7px;
   background: #fff;
@@ -328,10 +330,95 @@ pre {
   cursor: pointer;
 }
 
+.connection-button small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.provenance-rows {
+  display: grid;
+  gap: 4px;
+}
+
+.provenance-rows > span {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) 12px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 5px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.provenance-rows > span.selected {
+  color: #0f3d99;
+}
+
+.provenance-rows b {
+  min-width: 0;
+  color: #334155;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.provenance-rows em {
+  min-width: 0;
+  color: inherit;
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .connection-button:hover {
   border-color: #94a3b8;
   background: #f8fafc;
   color: #111827;
+}
+
+.field-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.field-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.field-list button,
+.clear-field {
+  padding: 5px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.field-list button:hover,
+.clear-field:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.field-list button.selected {
+  border-color: #0f62fe;
+  background: #eff6ff;
+  color: #0f3d99;
+  font-weight: 800;
+}
+
+.field-empty {
+  margin: 0;
+  padding: 8px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 7px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
 }
 
 .em-node {
@@ -539,6 +626,55 @@ pre {
 .edge-path-active {
   stroke: #111827;
   stroke-width: 3;
+}
+
+.edge-field-label {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  max-width: 220px;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.12);
+  color: #334155;
+  font-size: 10px;
+  pointer-events: all;
+}
+
+.edge-field-label.active,
+.edge-field-label.field-selected {
+  border-color: #0f62fe;
+  background: #eff6ff;
+}
+
+.edge-field-label button {
+  max-width: 72px;
+  padding: 1px 3px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: inherit;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edge-field-label button:hover {
+  background: #dbeafe;
+  color: #0f3d99;
+}
+
+.edge-field-label span {
+  color: #64748b;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .react-flow__edge.animated .edge-path-active {

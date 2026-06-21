@@ -26,6 +26,9 @@ events:
       subscriptionId: uuid
       customerId: uuid
       planId: string
+      paymentMethodId: string
+      amountCents: int
+      checkoutSessionId: uuid
       startedAt: datetime
     description: The customer started a paid subscription.
 
@@ -33,7 +36,10 @@ events:
     fields: |
       subscriptionId: uuid
       customerId: uuid
+      planId: string
+      paymentMethodId: string
       amountCents: int
+      checkoutSessionId: uuid
       requestedAt: datetime
     description: Payment collection was requested for a new subscription.
 
@@ -42,7 +48,9 @@ events:
       paymentId: uuid
       subscriptionId: uuid
       customerId: uuid
+      paymentMethodId: string
       amountCents: int
+      checkoutSessionId: uuid
       collectedAt: datetime
     description: Payment was successfully collected for a subscription.
 
@@ -50,7 +58,9 @@ events:
     fields: |
       subscriptionId: uuid
       customerId: uuid
+      paymentMethodId: string
       amountCents: int
+      checkoutSessionId: uuid
       reason: string
       failedAt: datetime
     description: Payment collection failed for a subscription.
