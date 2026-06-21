@@ -40,9 +40,43 @@ function NodeHandles() {
   );
 }
 
+function GwtStepList({ title, items }: { title: string; items?: ProjectNode["given"] }) {
+  const visibleItems = items && items.length > 0 ? items : [{ type: "empty", name: "empty" }];
+
+  return (
+    <div className="gwt-step">
+      <div className="gwt-step-title">{title}</div>
+      <div className="gwt-step-items">
+        {visibleItems.map((item, index) => (
+          <div className={`gwt-step-item gwt-step-item-${item.type ?? "empty"}`} key={`${item.type ?? "empty"}-${item.name ?? index}`}>
+            <span>{item.type ?? "empty"}</span>
+            <strong>{item.name ?? "empty"}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function EventModelNode({ data }: NodeProps) {
   const nodeData = data as CustomNodeData;
   const node = nodeData.projectNode;
+  if (node.type === "gwt") {
+    return (
+      <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""}`}>
+        <NodeHandles />
+        <div className="node-type">GWT case</div>
+        <div className="node-label">{node.label}</div>
+        {node.description ? <div className="gwt-description">{node.description}</div> : null}
+        <div className="gwt-steps">
+          <GwtStepList title="Given" items={node.given} />
+          <GwtStepList title="When" items={node.when} />
+          <GwtStepList title="Then" items={node.then} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""}`}>
       <NodeHandles />

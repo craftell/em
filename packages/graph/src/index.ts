@@ -40,6 +40,8 @@ function selectorForNode(node: GraphNode): Record<string, string> {
     case "command":
     case "query":
       return { slice: node.sliceTitle ?? "", name: node.sourceName ?? node.label };
+    case "gwt":
+      return { slice: node.sliceTitle ?? "", name: node.sourceName ?? node.label };
     case "event":
       return { name: node.sourceName ?? node.label };
   }

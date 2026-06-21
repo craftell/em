@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import fg from "fast-glob";
 import YAML from "yaml";
-import { commandId, edgeId, eventId, queryId, screenId, sliceId, storyId } from "./id.js";
+import { commandId, edgeId, eventId, gwtId, queryId, screenId, sliceId, storyId } from "./id.js";
 import { findProjectRoot, readConfig } from "./config.js";
 import type {
   CommandModel,
@@ -321,6 +321,23 @@ function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<E
         });
       }
     }
+
+    slice.gwt.forEach((scenario, index) => {
+      nodes.push({
+        id: gwtId(slice.path, index, scenario.name),
+        type: "gwt",
+        label: scenario.name ?? `Case ${index + 1}`,
+        storyName: slice.storyName,
+        sliceTitle: slice.title,
+        sourceName: scenario.name,
+        sourcePath: slice.path,
+        description: scenario.description,
+        given: scenario.given,
+        when: scenario.when,
+        then: scenario.then,
+        raw: slice.raw
+      });
+    });
   }
 
   return { nodes, edges };

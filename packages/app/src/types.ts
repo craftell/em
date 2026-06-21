@@ -1,4 +1,10 @@
-export type GraphNodeType = "story" | "slice" | "screen" | "processor" | "command" | "event" | "query";
+export type GraphNodeType = "story" | "slice" | "screen" | "processor" | "command" | "event" | "query" | "gwt";
+
+export type GwtItemRef = {
+  name?: string;
+  type?: string;
+  fields?: string;
+};
 
 export type ProjectNode = {
   id: string;
@@ -12,6 +18,9 @@ export type ProjectNode = {
   screenType?: "user" | "system";
   fields?: string;
   description?: string;
+  given?: GwtItemRef[];
+  when?: GwtItemRef[];
+  then?: GwtItemRef[];
   raw?: string;
 };
 

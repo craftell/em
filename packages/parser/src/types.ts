@@ -79,7 +79,8 @@ export type GraphNodeType =
   | "processor"
   | "command"
   | "event"
-  | "query";
+  | "query"
+  | "gwt";
 
 export type GraphNode = {
   id: string;
@@ -93,6 +94,9 @@ export type GraphNode = {
   screenType?: ScreenType;
   fields?: string;
   description?: string;
+  given?: GwtItemRef[];
+  when?: GwtItemRef[];
+  then?: GwtItemRef[];
   raw?: string;
 };
 
@@ -121,4 +125,3 @@ export type EventModelProject = {
   nodes: GraphNode[];
   edges: GraphEdge[];
 };
-

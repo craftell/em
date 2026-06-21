@@ -55,3 +55,32 @@ events:
       failedAt: datetime
     description: Payment collection failed for a subscription.
 
+  DenseCheckSeeded:
+    fields: |
+      actionId: uuid
+      accountId: uuid
+      seededAt: datetime
+    description: Sample seed event used to verify dense visual layout.
+
+  DenseActionApproved:
+    fields: |
+      actionId: uuid
+      operatorId: uuid
+      approvedAt: datetime
+    description: Sample approval event used to verify dense visual layout.
+
+  DenseActionRejected:
+    fields: |
+      actionId: uuid
+      operatorId: uuid
+      reason: string
+      rejectedAt: datetime
+    description: Sample rejection event used to verify dense visual layout.
+
+  DenseActionEscalated:
+    fields: |
+      actionId: uuid
+      operatorId: uuid
+      escalationReason: string
+      escalatedAt: datetime
+    description: Sample escalation event used to verify dense visual layout.

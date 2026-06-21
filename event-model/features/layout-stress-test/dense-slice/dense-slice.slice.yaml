@@ -1,0 +1,118 @@
+slice: Dense Slice Layout Check
+
+screen:
+  type: user
+  name: Dense Operations Console
+  actors:
+    - Operator
+  reads:
+    - AccountSnapshotForDenseCheck
+    - PendingActionsForDenseCheck
+    - RiskSignalsForDenseCheck
+  executes:
+    - SeedDenseCheck
+    - ApproveDenseAction
+    - RejectDenseAction
+    - EscalateDenseAction
+
+queries:
+  - name: AccountSnapshotForDenseCheck
+    fields: |
+      accountId: uuid
+      status: enum
+      balanceCents: int
+    from_events:
+      - DenseCheckSeeded
+      - DenseActionApproved
+      - DenseActionRejected
+      - DenseActionEscalated
+
+  - name: PendingActionsForDenseCheck
+    fields: |
+      actionId: uuid
+      accountId: uuid
+      requestedAt: datetime
+    from_events:
+      - DenseCheckSeeded
+      - DenseActionApproved
+      - DenseActionRejected
+      - DenseActionEscalated
+
+  - name: RiskSignalsForDenseCheck
+    fields: |
+      accountId: uuid
+      riskScore: int
+      reasons: string[]
+    from_events:
+      - DenseCheckSeeded
+      - DenseActionEscalated
+
+commands:
+  - name: SeedDenseCheck
+    fields: |
+      actionId: uuid
+      accountId: uuid
+      seededAt: datetime
+    produces:
+      - DenseCheckSeeded
+
+  - name: ApproveDenseAction
+    fields: |
+      actionId: uuid
+      operatorId: uuid
+      approvedAt: datetime
+    produces:
+      - DenseActionApproved
+
+  - name: RejectDenseAction
+    fields: |
+      actionId: uuid
+      operatorId: uuid
+      reason: string
+      rejectedAt: datetime
+    produces:
+      - DenseActionRejected
+
+  - name: EscalateDenseAction
+    fields: |
+      actionId: uuid
+      operatorId: uuid
+      escalationReason: string
+      escalatedAt: datetime
+    produces:
+      - DenseActionEscalated
+
+gwt:
+  - name: Approval succeeds
+    description: A seeded pending action can be approved by an operator.
+    given:
+      - name: DenseCheckSeeded
+        type: event
+    when:
+      - name: ApproveDenseAction
+        type: command
+    then:
+      - name: DenseActionApproved
+        type: event
+
+  - name: Rejection succeeds
+    description: A seeded pending action can be rejected with a reason.
+    given:
+      - name: DenseCheckSeeded
+        type: event
+    when:
+      - name: RejectDenseAction
+        type: command
+    then:
+      - name: DenseActionRejected
+        type: event
+
+  - name: Missing context error
+    description: An operator cannot escalate when the action context is absent.
+    given: []
+    when:
+      - name: EscalateDenseAction
+        type: command
+    then:
+      - name: DenseActionContextMissingError
+        type: error

@@ -1,0 +1,4 @@
+name: Layout Stress Test
+description: Sample data for checking dense slice layout, horizontal alignment, and GWT case rendering.
+slices:
+  - event-model/features/layout-stress-test/dense-slice/dense-slice.slice.yaml

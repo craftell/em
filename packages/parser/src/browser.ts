@@ -1,5 +1,5 @@
 import YAML from "yaml";
-import { commandId, edgeId, eventId, queryId, screenId, sliceId, storyId } from "./id.js";
+import { commandId, edgeId, eventId, gwtId, queryId, screenId, sliceId, storyId } from "./id.js";
 import type {
   CommandModel,
   EventModelProject,
@@ -194,6 +194,23 @@ function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<E
         edges.push({ id: edgeId("command-event", currentCommandId, currentEventId), kind: "command-event", source: currentCommandId, target: currentEventId, label: eventName });
       }
     }
+
+    slice.gwt.forEach((scenario, index) => {
+      nodes.push({
+        id: gwtId(slice.path, index, scenario.name),
+        type: "gwt",
+        label: scenario.name ?? `Case ${index + 1}`,
+        storyName: slice.storyName,
+        sliceTitle: slice.title,
+        sourceName: scenario.name,
+        sourcePath: slice.path,
+        description: scenario.description,
+        given: scenario.given,
+        when: scenario.when,
+        then: scenario.then,
+        raw: slice.raw
+      });
+    });
   }
 
   return { nodes, edges };

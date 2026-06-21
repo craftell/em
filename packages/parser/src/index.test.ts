@@ -23,10 +23,11 @@ describe("loadEventModelProject", () => {
   it("loads the sample event model and builds a graph", () => {
     const project = loadEventModelProject(new URL("../../..", import.meta.url).pathname);
 
-    expect(project.stories).toHaveLength(2);
-    expect(project.slices).toHaveLength(6);
-    expect(project.events).toHaveLength(7);
+    expect(project.stories).toHaveLength(3);
+    expect(project.slices).toHaveLength(7);
+    expect(project.events).toHaveLength(11);
     expect(project.nodes.some((node) => node.id === "evt_customer_registered")).toBe(true);
+    expect(project.nodes.some((node) => node.type === "gwt" && node.label === "Approval succeeds")).toBe(true);
     expect(project.edges.some((edge) => edge.kind === "command-event")).toBe(true);
     expect(project.edges.some((edge) => edge.kind === "event-query")).toBe(true);
     expectUniqueNodeIds(project);
@@ -37,8 +38,10 @@ describe("loadEventModelProject", () => {
     const relativePaths = [
       ".event-modeling/config.yaml",
       "event-model/events.yaml",
-      "event-model/stories/customer-onboarding.yaml",
-      "event-model/stories/subscription-checkout.yaml",
+      ...fs
+        .readdirSync(path.join(root, "event-model/stories"), { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".yaml"))
+        .map((entry) => path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join(path.posix.sep)),
       ...fs
         .readdirSync(path.join(root, "event-model/features"), { recursive: true, withFileTypes: true })
         .filter((entry) => entry.isFile() && entry.name.endsWith(".slice.yaml"))
@@ -50,9 +53,10 @@ describe("loadEventModelProject", () => {
     }));
     const project = loadEventModelProjectFromFiles(files);
 
-    expect(project.stories).toHaveLength(2);
-    expect(project.slices).toHaveLength(6);
+    expect(project.stories).toHaveLength(3);
+    expect(project.slices).toHaveLength(7);
     expect(project.nodes.some((node) => node.id === "evt_payment_collected")).toBe(true);
+    expect(project.nodes.some((node) => node.type === "gwt" && node.label === "Missing context error")).toBe(true);
     expectUniqueNodeIds(project);
   });
 
