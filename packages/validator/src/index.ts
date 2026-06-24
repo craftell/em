@@ -51,8 +51,34 @@ function duplicates(values: string[]): string[] {
   return [...duplicate];
 }
 
+const pastTenseTokens = new Set([
+  "sent",
+  "built",
+  "made",
+  "paid",
+  "booked",
+  "cancelled",
+  "canceled",
+  "submitted",
+  "recorded",
+  "created",
+  "updated",
+  "deleted",
+  "placed",
+  "notified"
+]);
+
+function pascalCaseTokens(name: string): string[] {
+  return name.match(/[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+|\d+/g) ?? [name];
+}
+
+function looksLikePastTenseToken(token: string): boolean {
+  const normalized = token.toLowerCase();
+  return pastTenseTokens.has(normalized) || /(ed|en|d)$/i.test(token);
+}
+
 function looksLikePastTenseEvent(name: string): boolean {
-  return /(ed|en|d|sent|built|made|booked|paid)$/i.test(name);
+  return pascalCaseTokens(name).some(looksLikePastTenseToken);
 }
 
 function isDispatchEvent(name: string): boolean {

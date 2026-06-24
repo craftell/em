@@ -433,7 +433,18 @@ function SourcePanel({
 
   return (
     <aside className="panel panel-right">
-      <h2>{selectedNode.label}</h2>
+      <div className="panel-heading">
+        <h2>{selectedNode.label}</h2>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={() => onSelect(selectedNode.id)}
+          aria-label="Focus selected node"
+          title="Focus selected node"
+        >
+          <span className="target-icon" aria-hidden="true" />
+        </button>
+      </div>
       <div className="meta-row"><span>Type</span><strong>{selectedNode.type}</strong></div>
       <div className="meta-row"><span>Reference</span><code>{reference}</code></div>
       {selectedNode.sourcePath ? <div className="meta-row"><span>Source</span><code>{selectedNode.sourcePath}</code></div> : null}
@@ -579,32 +590,65 @@ function SourcePanel({
 
 function ValidationPanel({
   report,
-  onSelect
+  onSelect,
+  open,
+  onOpen,
+  onClose
 }: {
   report?: ValidationReport;
   onSelect: (nodeId: string) => void;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
 }) {
+  const errors = report?.errors ?? 0;
+  const warnings = report?.warnings ?? 0;
+  const total = errors + warnings;
+
   return (
-    <aside className="panel panel-left">
-      <h2>Validation</h2>
-      {!report ? <p className="muted">Loading validation...</p> : (
-        <>
-          <div className="status-row">
-            <span className="status error">{report.errors} errors</span>
-            <span className="status warning">{report.warnings} warnings</span>
+    <>
+      <button
+        type="button"
+        className={`validation-fab ${errors > 0 ? "has-errors" : warnings > 0 ? "has-warnings" : ""}`}
+        onClick={onOpen}
+        aria-expanded={open}
+        aria-controls="validation-panel"
+        title="Open validation"
+      >
+        <span aria-hidden="true">!</span>
+        {total > 0 ? <strong aria-label={`${total} validation findings`}>{total}</strong> : null}
+      </button>
+      {open ? (
+        <aside className="panel validation-drawer" id="validation-panel">
+          <div className="panel-heading">
+            <h2>Validation</h2>
+            <button type="button" className="panel-close" onClick={onClose} aria-label="Close validation">Close</button>
           </div>
-          <div className="findings-list">
-            {report.findings.length === 0 ? <p className="muted">No validation findings.</p> : report.findings.map((finding) => (
-              <button type="button" className={`finding finding-${finding.severity}`} key={finding.id} onClick={() => finding.nodeId && onSelect(finding.nodeId)}>
-                <strong>{finding.check}</strong>
-                <span>{finding.message}</span>
-                {finding.path ? <code>{finding.path}</code> : null}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </aside>
+          {!report ? <p className="muted">Loading validation...</p> : (
+            <>
+              <div className="status-row">
+                <span className="status error">{report.errors} errors</span>
+                <span className="status warning">{report.warnings} warnings</span>
+              </div>
+              <div className="findings-list">
+                {report.findings.length === 0 ? <p className="muted">No validation findings.</p> : report.findings.map((finding) => (
+                  <div className={`finding finding-${finding.severity}`} key={finding.id}>
+                    <div className="finding-header">
+                      <strong>{finding.check}</strong>
+                      {finding.nodeId ? (
+                        <button type="button" onClick={() => onSelect(finding.nodeId!)}>Focus</button>
+                      ) : null}
+                    </div>
+                    <span>{finding.message}</span>
+                    {finding.path ? <code>{finding.path}</code> : null}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </aside>
+      ) : null}
+    </>
   );
 }
 
@@ -619,6 +663,7 @@ function FlowWorkspace() {
   const [search, setSearch] = useState("");
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string>();
   const [selectedFieldName, setSelectedFieldName] = useState<string>();
+  const [validationOpen, setValidationOpen] = useState(false);
   const { setCenter, fitView } = useReactFlow();
 
   useEffect(() => {
@@ -778,15 +823,22 @@ function FlowWorkspace() {
           <span>{project.nodes.filter((node) => node.type === "event").length} events</span>
         </div>
         <div className="segmented toolbar-history" aria-label="Selection history">
-          <button type="button" disabled={backStack.length === 0} onClick={goBack}>Back</button>
-          <button type="button" disabled={forwardStack.length === 0} onClick={goForward}>Forward</button>
+          <button type="button" disabled={backStack.length === 0} onClick={goBack} aria-label="Back" title="Back">←</button>
+          <button type="button" disabled={forwardStack.length === 0} onClick={goForward} aria-label="Forward" title="Forward">→</button>
         </div>
         <div className="search-box">
           <input aria-label="Search event model" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search nodes by name or type..." />
           {searchResults.length > 0 ? (
             <div className="search-results">
               {searchResults.map((node) => (
-                <button type="button" key={node.id} onClick={() => focusNode(node.id)}>
+                <button
+                  type="button"
+                  key={node.id}
+                  onClick={() => {
+                    focusNode(node.id);
+                    setSearch("");
+                  }}
+                >
                   <span>{node.label}</span>
                   <small>{node.type}</small>
                 </button>
@@ -795,7 +847,13 @@ function FlowWorkspace() {
           ) : null}
           </div>
       </header>
-      <ValidationPanel report={report} onSelect={focusNode} />
+      <ValidationPanel
+        report={report}
+        onSelect={focusNode}
+        open={validationOpen}
+        onOpen={() => setValidationOpen(true)}
+        onClose={() => setValidationOpen(false)}
+      />
       <SourcePanel
         project={project}
         selectedNode={selectedNode}
