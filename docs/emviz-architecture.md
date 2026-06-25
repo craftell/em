@@ -245,7 +245,7 @@ Cross-slice and cross-story dependencies happen through canonical event nodes.
 
 ## Canvas Layout
 
-The app should use an infinite canvas with pan and zoom, similar in feel to Figma, Miro, or Excalidraw.
+The app should use an infinite canvas with pan and zoom, similar in feel to common whiteboard and diagramming tools.
 
 All stories should be visible on the canvas.
 
@@ -406,4 +406,4 @@ Avoid a heavy UI framework in v1. Use focused custom components for toolbar, pan
 - Full visual modeling authoring.
 - GitHub import.
 - Hosted collaboration.
-- Figma plugin compatibility changes.
+- Event Modeling schema compatibility changes.

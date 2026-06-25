@@ -97,8 +97,8 @@ timeframes, different outcomes).
 ## Slice schema
 
 These are direct mirrors of the parser rules in `em-model`'s
-`references/yaml-format.md`. The Figma plugin enforces these on import — we
-catch them earlier.
+`references/yaml-format.md`. Event Modeling tooling enforces these rules, and
+we catch them early.
 
 ### L1 — valid YAML (E)
 

@@ -1,9 +1,9 @@
 # YAML Format Reference
 
 The canonical format for every file the `em-model` skill produces. The
-**slice file** is the only artifact the figma-event-modeling-plugin reads — its
-schema must stay exact. `events.yaml` and story files are documentation and have
-more flexibility.
+**slice file** is the canonical artifact parsed by Event Modeling tooling, so
+its schema must stay exact. `events.yaml` and story files are documentation and
+have more flexibility.
 
 ## Table of contents
 
@@ -16,7 +16,7 @@ more flexibility.
 7. [Story files (documentation)](#story-files-documentation)
 8. [Field types](#field-types)
 9. [GWT reference](#gwt-reference)
-10. [Validation rules the plugin enforces](#validation-rules-the-plugin-enforces)
+10. [Validation rules tooling enforces](#validation-rules-tooling-enforces)
 
 ---
 
@@ -55,8 +55,8 @@ screen:
     - RegisterUser
 ```
 
-- `screen.type: user` → renders as a gray rounded Screen square in Figma.
-- `screen.type: system` → renders as a black gear-icon Processor.
+- `screen.type: user` → renders as a user-facing Screen node.
+- `screen.type: system` → renders as a system Processor node.
 - `screen.actors` is optional and only valid when `screen.type` is `user`. The parser
   hard-fails if `actors` is present on a `system` screen.
 - Names in `reads`/`executes` must match `queries[].name` / `commands[].name`
@@ -78,7 +78,7 @@ commands:
 
 `fields` is optional in the parser but **strongly recommended** — without it the
 command is undocumented. When present, it must be a string (block scalar with `|`),
-even for a single field. The plugin renders it verbatim into a text block.
+even for a single field. Visualizers render it verbatim into a text block.
 
 ### Queries
 
@@ -280,9 +280,9 @@ true` on events — that key now hard-fails the parser.
 
 ## `event-model/events.yaml` (documentation)
 
-A registry of every event the model uses, with field shapes. The Figma plugin
-does not read this file — it exists so humans can spot drift between a producer's
-`produces` and a consumer's `from_events`.
+A registry of every event the model uses, with field shapes. This file exists
+so humans and validation tooling can spot drift between a producer's `produces`
+and a consumer's `from_events`.
 
 ```yaml
 events:
