@@ -26,6 +26,11 @@ It is not a YAML editor. The canonical model stays in your Event Modeling files;
    - Copy stable `em://...` node references.
    - Copy YAML excerpts, connected context, or an edit-prompt scaffold.
 
+5. **Compare model versions**
+   - Run `emviz diff` against a git ref or another project directory.
+   - Review added, removed, and changed nodes on the same canvas.
+   - Filter the canvas to focus on one kind of change.
+
 ![emviz node detail](docs/images/emviz-node-detail.png)
 
 ## Quick Start
@@ -88,6 +93,31 @@ The installed skills provide:
 4. **Export a standalone HTML file**
 
    Use the `...` menu in the top-right toolbar and choose `Export`. The exported HTML embeds the current model and can be opened without the project server.
+
+5. **Compare two versions**
+
+   ```sh
+   npx emviz diff HEAD~1
+   ```
+
+   Compares the current project with a git commit, branch, or tag. The current working tree is used as the target.
+
+   ```sh
+   npx emviz diff --from HEAD~1 --to .
+   npx emviz diff --from ../old-event-model --to .
+   ```
+
+   `--from` is the base model and `--to` is the target model. Each side can be a git ref or an Event Modeling project directory.
+
+## Diff View
+
+`emviz diff` opens the normal canvas with diff metadata layered onto the graph. Added nodes and edges are green, removed nodes and edges are red and dashed, and changed nodes are amber.
+
+![emviz diff overview](docs/images/emviz-diff-overview.png)
+
+The left panel summarizes changed nodes and provides filters for added, removed, and changed graph elements.
+
+![emviz diff changed filter](docs/images/emviz-diff-changed-filter.png)
 
 ## Input Files
 

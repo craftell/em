@@ -17,13 +17,14 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
-import type { EventModelProject, FieldFlow, ProjectNode, ValidationFinding, ValidationReport } from "./types";
+import type { EventModelProject, FieldFlow, GraphDiff, GraphDiffStatus, ProjectNode, ValidationFinding, ValidationReport } from "./types";
 import { loadEventModelProjectFromFiles, type InMemoryEventModelFile } from "@emviz/parser/browser";
 import { validateEventModelProject as validateImportedProject } from "@emviz/validator/browser";
 
 type StandalonePayload = {
   project: EventModelProject;
   report?: ValidationReport;
+  diff?: GraphDiff;
   exportedAt: string;
 };
 
@@ -37,6 +38,7 @@ type CustomNodeData = {
   projectNode: ProjectNode;
   selected: boolean;
   connected: boolean;
+  diffStatus?: GraphDiffStatus;
 };
 
 function NodeHandles() {
@@ -75,10 +77,12 @@ function GwtStepList({ title, items }: { title: string; items?: ProjectNode["giv
 function EventModelNode({ data }: NodeProps) {
   const nodeData = data as CustomNodeData;
   const node = nodeData.projectNode;
+  const diffBadge = nodeData.diffStatus && nodeData.diffStatus !== "unchanged" ? <div className={`diff-badge diff-badge-${nodeData.diffStatus}`}>{nodeData.diffStatus}</div> : null;
   if (node.type === "gwt") {
     return (
-      <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""}`}>
+      <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
         <NodeHandles />
+        {diffBadge}
         <div className="node-type">GWT case</div>
         <div className="node-label">{node.label}</div>
         {node.description ? <div className="gwt-description">{node.description}</div> : null}
@@ -92,8 +96,9 @@ function EventModelNode({ data }: NodeProps) {
   }
 
   return (
-    <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""}`}>
+    <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
       <NodeHandles />
+      {diffBadge}
       <div className="node-type">{node.type}</div>
       <div className="node-label">{node.label}</div>
       {node.actors && node.actors.length > 0 ? (
@@ -107,7 +112,8 @@ function GroupNode({ data }: NodeProps) {
   const nodeData = data as CustomNodeData;
   const node = nodeData.projectNode;
   return (
-    <div className={`group-node group-${node.type} ${nodeData.selected ? "selected" : ""}`}>
+    <div className={`group-node group-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
+      {nodeData.diffStatus && nodeData.diffStatus !== "unchanged" ? <div className={`diff-badge diff-badge-${nodeData.diffStatus}`}>{nodeData.diffStatus}</div> : null}
       <div className="group-title">{node.label}</div>
       {node.description ? <div className="group-description">{node.description}</div> : null}
     </div>
@@ -123,6 +129,7 @@ type EdgeRoute = {
   kind?: string;
   route?: "semantic" | "same-slice-read" | "event-read";
   active?: boolean;
+  diffStatus?: GraphDiffStatus;
   fieldFlow?: FieldFlow;
   selectedFieldName?: string;
   onSelectField?: (fieldName: string) => void;
@@ -177,7 +184,8 @@ function eventModelPath({
 
 function EventModelEdge(props: EdgeProps) {
   const route = props.data as EdgeRoute | undefined;
-  const stroke = route?.active ? "#111827" : "#64748b";
+  const diffStroke = route?.diffStatus === "added" ? "#15803d" : route?.diffStatus === "removed" ? "#b91c1c" : route?.diffStatus === "changed" ? "#b45309" : undefined;
+  const stroke = route?.active ? "#111827" : diffStroke ?? "#64748b";
   const flow = route?.fieldFlow;
   const selectedFieldInFlow = Boolean(
     route?.selectedFieldName &&
@@ -190,7 +198,7 @@ function EventModelEdge(props: EdgeProps) {
       <BaseEdge
         path={eventModelPath(props)}
         markerEnd={props.markerEnd}
-        style={{ ...props.style, stroke }}
+        style={{ ...props.style, stroke, strokeDasharray: route?.diffStatus === "removed" ? "7 5" : undefined, strokeWidth: route?.diffStatus && route.diffStatus !== "unchanged" ? 2.4 : undefined }}
         className={route?.active ? "edge-path-active" : "edge-path"}
       />
       {flow && flow.visibleFieldNames.length > 0 && (route?.active || selectedFieldInFlow) ? (
@@ -264,7 +272,7 @@ async function fetchAssetText(url: string): Promise<string> {
   return response.text();
 }
 
-async function createStandaloneHtml(project: EventModelProject, report?: ValidationReport): Promise<string> {
+async function createStandaloneHtml(project: EventModelProject, report?: ValidationReport, diff?: GraphDiff): Promise<string> {
   const moduleScripts = Array.from(document.querySelectorAll<HTMLScriptElement>("script[type=\"module\"][src]"))
     .map((script) => new URL(script.src, window.location.href))
     .filter((url) => !url.pathname.includes("/@vite/") && !url.pathname.endsWith("/@react-refresh"));
@@ -283,6 +291,7 @@ async function createStandaloneHtml(project: EventModelProject, report?: Validat
   const payload: StandalonePayload = {
     project,
     report,
+    diff,
     exportedAt: new Date().toISOString()
   };
 
@@ -302,6 +311,61 @@ async function createStandaloneHtml(project: EventModelProject, report?: Validat
     "  </body>",
     "</html>"
   ].join("\n");
+}
+
+type DiffFilter = "all" | "added" | "removed" | "changed";
+
+function DiffPanel({
+  diff,
+  filter,
+  onFilter,
+  onSelect
+}: {
+  diff: GraphDiff;
+  filter: DiffFilter;
+  onFilter: (filter: DiffFilter) => void;
+  onSelect: (nodeId: string) => void;
+}) {
+  const changedNodeEntries = Object.entries(diff.nodeStatus)
+    .filter(([, status]) => status !== "unchanged")
+    .slice(0, 80);
+
+  return (
+    <aside className="panel diff-panel">
+      <h2>Diff</h2>
+      <div className="diff-range">
+        <code>{diff.base.label}</code>
+        <span>to</span>
+        <code>{diff.target.label}</code>
+      </div>
+      <div className="diff-counts">
+        <button type="button" className={filter === "added" ? "active added" : "added"} onClick={() => onFilter(filter === "added" ? "all" : "added")}>
+          <strong>{diff.summary.nodes.added}</strong>
+          <span>Added</span>
+        </button>
+        <button type="button" className={filter === "removed" ? "active removed" : "removed"} onClick={() => onFilter(filter === "removed" ? "all" : "removed")}>
+          <strong>{diff.summary.nodes.removed}</strong>
+          <span>Removed</span>
+        </button>
+        <button type="button" className={filter === "changed" ? "active changed" : "changed"} onClick={() => onFilter(filter === "changed" ? "all" : "changed")}>
+          <strong>{diff.summary.nodes.changed}</strong>
+          <span>Changed</span>
+        </button>
+      </div>
+      {filter !== "all" ? (
+        <button type="button" className="clear-diff-filter" onClick={() => onFilter("all")}>Show full graph</button>
+      ) : null}
+      <h3>Changed Nodes</h3>
+      <div className="diff-list">
+        {changedNodeEntries.length === 0 ? <p className="muted">No node changes.</p> : changedNodeEntries.map(([nodeId, status]) => (
+          <button type="button" className={`diff-list-item ${status}`} key={nodeId} onClick={() => onSelect(nodeId)}>
+            <span>{nodeId}</span>
+            <strong>{status}</strong>
+          </button>
+        ))}
+      </div>
+    </aside>
+  );
 }
 
 function downloadTextFile(filename: string, content: string): void {
@@ -737,6 +801,8 @@ function ValidationPanel({
 function FlowWorkspace() {
   const [project, setProject] = useState<EventModelProject>();
   const [report, setReport] = useState<ValidationReport>();
+  const [diff, setDiff] = useState<GraphDiff>();
+  const [diffFilter, setDiffFilter] = useState<DiffFilter>("all");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "import">("loading");
   const [importError, setImportError] = useState<string>();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -755,6 +821,7 @@ function FlowWorkspace() {
     if (window.__EMVIZ_EXPORT__?.project) {
       setProject(window.__EMVIZ_EXPORT__.project);
       setReport(window.__EMVIZ_EXPORT__.report);
+      setDiff(window.__EMVIZ_EXPORT__.diff);
       setLoadState("ready");
       window.setTimeout(() => void fitView({ padding: 0.18, duration: 300 }), 50);
       return;
@@ -762,10 +829,12 @@ function FlowWorkspace() {
 
     void Promise.all([
       fetch("/api/model").then((res) => res.json()),
-      fetch("/api/validation").then((res) => res.json())
-    ]).then(([model, validation]) => {
+      fetch("/api/validation").then((res) => res.ok ? res.json() : undefined).catch(() => undefined),
+      fetch("/api/diff").then((res) => res.ok ? res.json() : undefined).catch(() => undefined)
+    ]).then(([model, validation, diffPayload]) => {
       setProject(model);
       setReport(validation);
+      setDiff(diffPayload);
       setLoadState("ready");
       window.setTimeout(() => void fitView({ padding: 0.18, duration: 300 }), 50);
     }).catch(() => {
@@ -797,9 +866,12 @@ function FlowWorkspace() {
       focusedEdgeIds,
       edgeFieldFlows: fieldFlows,
       selectedFieldName,
-      onSelectField: setSelectedFieldName
+      onSelectField: setSelectedFieldName,
+      diffNodeStatus: diff?.nodeStatus,
+      diffEdgeStatus: diff?.edgeStatus,
+      diffFilter
     }) : { nodes: [], edges: [] },
-    [fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
+    [diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
   );
   const searchResults = useMemo(() => {
     if (!project || search.trim().length < 2) return [];
@@ -845,7 +917,7 @@ function FlowWorkspace() {
     setExportState("exporting");
     setExportError(undefined);
     setMenuOpen(false);
-    void createStandaloneHtml(project, report)
+    void createStandaloneHtml(project, report, diff)
       .then((html) => {
         downloadTextFile(`${modelFileBaseName(project)}.emviz.html`, html);
       })
@@ -853,7 +925,7 @@ function FlowWorkspace() {
         setExportError(error instanceof Error ? error.message : String(error));
       })
       .finally(() => setExportState("idle"));
-  }, [project, report]);
+  }, [diff, project, report]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -900,6 +972,8 @@ function FlowWorkspace() {
         warnings: baseReport.warnings + extraFindings.filter((finding) => finding.severity === "warning").length,
         findings: [...baseReport.findings, ...extraFindings]
       });
+      setDiff(undefined);
+      setDiffFilter("all");
       setSelectedId(undefined);
       setHoveredEdgeId(undefined);
       setSelectedFieldName(undefined);
@@ -923,7 +997,7 @@ function FlowWorkspace() {
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${diff ? "diff-mode" : ""}`}>
       <header className="toolbar">
         <div className="model-summary">
           <strong>emviz</strong>
@@ -984,6 +1058,14 @@ function FlowWorkspace() {
         onOpen={() => setValidationOpen(true)}
         onClose={() => setValidationOpen(false)}
       />
+      {diff ? (
+        <DiffPanel
+          diff={diff}
+          filter={diffFilter}
+          onFilter={setDiffFilter}
+          onSelect={focusNode}
+        />
+      ) : null}
       <SourcePanel
         project={project}
         selectedNode={selectedNode}

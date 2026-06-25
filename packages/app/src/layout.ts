@@ -1,5 +1,5 @@
 import { MarkerType, type Edge, type Node, Position } from "@xyflow/react";
-import type { EventModelProject, FieldFlow, ProjectNode } from "./types";
+import type { EventModelProject, FieldFlow, GraphDiffStatus, ProjectNode } from "./types";
 
 const STORY_X = 180;
 const STORY_Y = 80;
@@ -25,11 +25,19 @@ type NodeData = {
   projectNode: ProjectNode;
   selected: boolean;
   connected: boolean;
+  diffStatus?: GraphDiffStatus;
 };
 
 function edgeColor(kind: string): string {
   if (kind === "slice-screen" || kind === "story-slice") return "#cbd5e1";
   return "#64748b";
+}
+
+function diffEdgeColor(status?: GraphDiffStatus): string | undefined {
+  if (status === "added") return "#15803d";
+  if (status === "removed") return "#b91c1c";
+  if (status === "changed") return "#b45309";
+  return undefined;
 }
 
 function nodeDefaults(node: ProjectNode) {
@@ -243,6 +251,9 @@ export function toFlow(
     edgeFieldFlows?: Map<string, FieldFlow>;
     selectedFieldName?: string;
     onSelectField?: (fieldName: string) => void;
+    diffNodeStatus?: Record<string, GraphDiffStatus>;
+    diffEdgeStatus?: Record<string, GraphDiffStatus>;
+    diffFilter?: "all" | "added" | "removed" | "changed";
   } = {}
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
   const storyIndexes = storyIndex(project);
@@ -365,9 +376,11 @@ export function toFlow(
       data: {
         projectNode: node,
         selected: node.id === selectedId,
-        connected: connectedIds.has(node.id)
+        connected: connectedIds.has(node.id),
+        diffStatus: options.diffNodeStatus?.[node.id]
       },
-      hidden: Boolean(node.storyName && !visibleStories.has(node.storyName)),
+      hidden: Boolean(node.storyName && !visibleStories.has(node.storyName)) ||
+        Boolean(options.diffFilter && options.diffFilter !== "all" && options.diffNodeStatus?.[node.id] !== options.diffFilter),
       style: isContainer
         ? { width, height, zIndex: node.type === "story" ? -20 : -10, opacity: node.storyName && !visibleStories.has(node.storyName) ? 0.18 : 1 }
         : { width: nodeWidth, height: node.type === "gwt" ? GWT_HEIGHT : undefined, opacity: node.storyName && !visibleStories.has(node.storyName) ? 0.18 : 1 },
@@ -388,6 +401,8 @@ export function toFlow(
     const sourceNode = nodeById.get(edge.source);
     const targetNode = nodeById.get(edge.target);
     const active = Boolean(options.focusedEdgeIds?.has(edge.id));
+    const diffStatus = options.diffEdgeStatus?.[edge.id];
+    const diffColor = diffEdgeColor(diffStatus);
     const { sourceSide, targetSide, route } = routedSides(
       edge.kind,
       sourceNode,
@@ -407,13 +422,15 @@ export function toFlow(
         kind: edge.kind,
         route,
         active,
+        diffStatus,
         fieldFlow: options.edgeFieldFlows?.get(edge.id),
         selectedFieldName: options.selectedFieldName,
         onSelectField: options.onSelectField
       },
-      markerEnd: { type: MarkerType.ArrowClosed, color: active ? "#111827" : edgeColor(edge.kind) },
+      markerEnd: { type: MarkerType.ArrowClosed, color: active ? "#111827" : diffColor ?? edgeColor(edge.kind) },
       label: options.edgeDetail === "verbose" ? edge.label : undefined,
-      className: active ? "edge edge-active" : "edge",
+      className: `edge ${active ? "edge-active" : ""} ${diffStatus ? `edge-diff-${diffStatus}` : ""}`,
+      hidden: Boolean(options.diffFilter && options.diffFilter !== "all" && diffStatus !== options.diffFilter),
       animated: active
     };
   });

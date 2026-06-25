@@ -105,3 +105,27 @@ export type ValidationReport = {
   warnings: number;
   findings: ValidationFinding[];
 };
+
+export type GraphDiffStatus = "added" | "removed" | "changed" | "unchanged";
+
+export type GraphDiffSummary = {
+  added: number;
+  removed: number;
+  changed: number;
+  unchanged: number;
+};
+
+export type GraphDiff = {
+  base: {
+    label: string;
+  };
+  target: {
+    label: string;
+  };
+  nodeStatus: Record<string, GraphDiffStatus>;
+  edgeStatus: Record<string, GraphDiffStatus>;
+  summary: {
+    nodes: GraphDiffSummary;
+    edges: GraphDiffSummary;
+  };
+};

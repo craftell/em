@@ -2,10 +2,12 @@
 import fs from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadEventModelProject } from "@emviz/parser";
-import { readGraphSidecar, writeGraphSidecar } from "@emviz/graph";
+import { diffEventModelProjects, readGraphSidecar, writeGraphSidecar, type GraphDiff } from "@emviz/graph";
 import { validateEventModelProject } from "@emviz/validator";
 
 const args = process.argv.slice(2);
@@ -31,6 +33,122 @@ function loadApiModel(targetDir: string): unknown {
   return {
     ...project,
     graphSidecar: readGraphSidecar(project.root)
+  };
+}
+
+type DiffSource = {
+  project: ReturnType<typeof loadEventModelProject>;
+  label: string;
+};
+
+type DiffServerState = {
+  model: unknown;
+  validation: ReturnType<typeof validateEventModelProject>;
+  diff: GraphDiff;
+};
+
+function isGitRef(value: string): boolean {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", `${value}^{commit}`], {
+      cwd: process.cwd(),
+      stdio: "ignore"
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function materializeGitRef(ref: string): string {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "emviz-diff-"));
+  const files = execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", ".event-modeling", "event-model"], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  })
+    .split("\n")
+    .filter(Boolean);
+
+  if (files.length === 0) throw new Error(`Git ref "${ref}" does not contain .event-modeling or event-model files.`);
+
+  for (const file of files) {
+    const content = execFileSync("git", ["show", `${ref}:${file}`], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024
+    });
+    const outputPath = path.join(tempRoot, file);
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, content);
+  }
+
+  return tempRoot;
+}
+
+function loadDiffSource(value: string | undefined, fallback: string): DiffSource {
+  const raw = value ?? fallback;
+  const resolved = path.resolve(process.cwd(), raw);
+  if (fs.existsSync(resolved)) {
+    if (fs.statSync(resolved).isFile()) {
+      throw new Error(`Diff source must be an event-modeling project directory, not a file: ${raw}`);
+    }
+    return {
+      project: loadEventModelProject(resolved),
+      label: path.relative(process.cwd(), resolved) || "."
+    };
+  }
+
+  if (isGitRef(raw)) {
+    const root = materializeGitRef(raw);
+    return {
+      project: loadEventModelProject(root),
+      label: raw
+    };
+  }
+
+  throw new Error(`Diff source not found as a path or git ref: ${raw}`);
+}
+
+function parseDiffArgs(values: string[]): { base: string; target: string } {
+  let base: string | undefined;
+  let target: string | undefined;
+  const positional: string[] = [];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    if (value === "--from") {
+      base = values[index + 1];
+      index += 1;
+      continue;
+    }
+    if (value === "--to") {
+      target = values[index + 1];
+      index += 1;
+      continue;
+    }
+    positional.push(value);
+  }
+
+  return {
+    base: base ?? positional[0] ?? "HEAD~1",
+    target: target ?? positional[1] ?? "."
+  };
+}
+
+function loadDiffServerState(baseValue: string, targetValue: string): DiffServerState {
+  const base = loadDiffSource(baseValue, "HEAD~1");
+  const target = loadDiffSource(targetValue, ".");
+  const result = diffEventModelProjects(base.project, target.project, {
+    base: base.label,
+    target: target.label
+  });
+
+  return {
+    model: {
+      ...result.project,
+      graphSidecar: readGraphSidecar(target.project.root)
+    },
+    validation: validateEventModelProject(target.project),
+    diff: result.diff
   };
 }
 
@@ -122,12 +240,27 @@ function listenWithFallback(server: http.Server, port: number): Promise<number> 
   });
 }
 
-async function runServer(targetDir?: string): Promise<void> {
+async function runServer(targetDir?: string, diffState?: DiffServerState): Promise<void> {
   if (targetDir) syncMissingGraphSidecar(targetDir);
 
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "app");
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
+
+    if (diffState && url.pathname === "/api/model") {
+      sendJson(res, diffState.model);
+      return;
+    }
+
+    if (diffState && url.pathname === "/api/diff") {
+      sendJson(res, diffState.diff);
+      return;
+    }
+
+    if (diffState && url.pathname === "/api/validation") {
+      sendJson(res, diffState.validation);
+      return;
+    }
 
     if (targetDir && url.pathname === "/api/model") {
       try {
@@ -155,7 +288,11 @@ async function runServer(targetDir?: string): Promise<void> {
 
   const port = await listenWithFallback(server, 5173);
   console.log(`  ➜  Local:   http://localhost:${port}/`);
-  console.log(targetDir ? `Project: ${targetDir}` : "Mode: manual import");
+  if (diffState) {
+    console.log(`Diff: ${diffState.diff.base.label} -> ${diffState.diff.target.label}`);
+  } else {
+    console.log(targetDir ? `Project: ${targetDir}` : "Mode: manual import");
+  }
 }
 
 async function main(): Promise<void> {
@@ -170,9 +307,18 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "diff") {
+    const diffArgs = parseDiffArgs(args.slice(1));
+    const diffState = loadDiffServerState(diffArgs.base, diffArgs.target);
+    await runServer(undefined, diffState);
+    return;
+  }
+
   if (command === "--help" || command === "-h") {
     console.log("Usage: emviz [project-dir]");
-    console.log("       emviz sync [project-dir]");
+     console.log("       emviz sync [project-dir]");
+    console.log("       emviz diff [base-ref-or-dir] [project-dir]");
+    console.log("       emviz diff --from <base-ref-or-dir> --to <project-dir>");
     console.log("       emviz init [project-dir]  (deprecated alias for sync)");
     return;
   }
