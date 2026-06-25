@@ -21,6 +21,18 @@ import type { EventModelProject, FieldFlow, ProjectNode, ValidationFinding, Vali
 import { loadEventModelProjectFromFiles, type InMemoryEventModelFile } from "@emviz/parser/browser";
 import { validateEventModelProject as validateImportedProject } from "@emviz/validator/browser";
 
+type StandalonePayload = {
+  project: EventModelProject;
+  report?: ValidationReport;
+  exportedAt: string;
+};
+
+declare global {
+  interface Window {
+    __EMVIZ_EXPORT__?: StandalonePayload;
+  }
+}
+
 type CustomNodeData = {
   projectNode: ProjectNode;
   selected: boolean;
@@ -229,6 +241,76 @@ function CopyAction({
 
 function isBehaviorConnection(edgeKind: string): boolean {
   return edgeKind === "query-screen" || edgeKind === "screen-command" || edgeKind === "command-event" || edgeKind === "event-query";
+}
+
+function jsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+function modelFileBaseName(project: EventModelProject): string {
+  const name = project.graphSidecar?.model?.name ?? project.graphSidecar?.model?.id ?? "event-model";
+  const cleanName = name.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  return cleanName || "event-model";
+}
+
+async function fetchAssetText(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  }
+  return response.text();
+}
+
+async function createStandaloneHtml(project: EventModelProject, report?: ValidationReport): Promise<string> {
+  const moduleScripts = Array.from(document.querySelectorAll<HTMLScriptElement>("script[type=\"module\"][src]"))
+    .map((script) => new URL(script.src, window.location.href))
+    .filter((url) => !url.pathname.includes("/@vite/") && !url.pathname.endsWith("/@react-refresh"));
+
+  if (moduleScripts.length === 0 || moduleScripts.some((url) => url.pathname.includes("/src/") || url.pathname.endsWith(".tsx"))) {
+    throw new Error("Standalone export requires a built emviz app. Run the packaged CLI or `pnpm --filter @emviz/app build` and open the built app.");
+  }
+
+  const stylesheetLinks = Array.from(document.querySelectorAll<HTMLLinkElement>("link[rel=\"stylesheet\"][href]"))
+    .map((link) => new URL(link.href, window.location.href));
+  const linkedCss = await Promise.all(stylesheetLinks.map((url) => fetchAssetText(url.href)));
+  const inlineCss = Array.from(document.querySelectorAll<HTMLStyleElement>("style"))
+    .map((style) => style.textContent ?? "")
+    .filter(Boolean);
+  const scripts = await Promise.all(moduleScripts.map((url) => fetchAssetText(url.href)));
+  const payload: StandalonePayload = {
+    project,
+    report,
+    exportedAt: new Date().toISOString()
+  };
+
+  return [
+    "<!doctype html>",
+    "<html lang=\"en\">",
+    "  <head>",
+    "    <meta charset=\"UTF-8\" />",
+    "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />",
+    `    <title>emviz - ${project.graphSidecar?.model?.name ?? "export"}</title>`,
+    `    <style>${[...linkedCss, ...inlineCss].join("\n\n")}</style>`,
+    "  </head>",
+    "  <body>",
+    "    <div id=\"root\"></div>",
+    `    <script>window.__EMVIZ_EXPORT__ = ${jsonForScript(payload)};</script>`,
+    `    <script type=\"module\">${scripts.join("\n\n")}</script>`,
+    "  </body>",
+    "</html>"
+  ].join("\n");
+}
+
+function downloadTextFile(filename: string, content: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type: "text/html;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 async function filesFromFileList(fileList: FileList): Promise<InMemoryEventModelFile[]> {
@@ -657,6 +739,9 @@ function FlowWorkspace() {
   const [report, setReport] = useState<ValidationReport>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "import">("loading");
   const [importError, setImportError] = useState<string>();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [exportState, setExportState] = useState<"idle" | "exporting">("idle");
+  const [exportError, setExportError] = useState<string>();
   const [selectedId, setSelectedId] = useState<string>();
   const [backStack, setBackStack] = useState<string[]>([]);
   const [forwardStack, setForwardStack] = useState<string[]>([]);
@@ -667,6 +752,14 @@ function FlowWorkspace() {
   const { setCenter, fitView } = useReactFlow();
 
   useEffect(() => {
+    if (window.__EMVIZ_EXPORT__?.project) {
+      setProject(window.__EMVIZ_EXPORT__.project);
+      setReport(window.__EMVIZ_EXPORT__.report);
+      setLoadState("ready");
+      window.setTimeout(() => void fitView({ padding: 0.18, duration: 300 }), 50);
+      return;
+    }
+
     void Promise.all([
       fetch("/api/model").then((res) => res.json()),
       fetch("/api/validation").then((res) => res.json())
@@ -747,9 +840,25 @@ function FlowWorkspace() {
     setHoveredEdgeId(undefined);
   }, []);
 
+  const exportStandalone = useCallback(() => {
+    if (!project) return;
+    setExportState("exporting");
+    setExportError(undefined);
+    setMenuOpen(false);
+    void createStandaloneHtml(project, report)
+      .then((html) => {
+        downloadTextFile(`${modelFileBaseName(project)}.emviz.html`, html);
+      })
+      .catch((error) => {
+        setExportError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => setExportState("idle"));
+  }, [project, report]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        setMenuOpen(false);
         clearFocus();
       }
     };
@@ -845,7 +954,28 @@ function FlowWorkspace() {
               ))}
             </div>
           ) : null}
-          </div>
+        </div>
+        <div className="toolbar-menu">
+          <button
+            type="button"
+            className="menu-trigger"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="Open menu"
+            title="Open menu"
+          >
+            ...
+          </button>
+          {menuOpen ? (
+            <div className="menu-popover" role="menu">
+              <button type="button" role="menuitem" onClick={exportStandalone} disabled={exportState === "exporting"}>
+                {exportState === "exporting" ? "Exporting..." : "Export"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {exportError ? <div className="toolbar-error" role="alert">{exportError}</div> : null}
       </header>
       <ValidationPanel
         report={report}

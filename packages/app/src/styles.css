@@ -81,6 +81,72 @@ input {
   padding: 6px 0;
 }
 
+.toolbar-menu {
+  position: relative;
+}
+
+.menu-trigger {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.menu-trigger:hover,
+.menu-trigger:focus-visible {
+  background: #f8fafc;
+}
+
+.menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  min-width: 150px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+}
+
+.menu-popover button {
+  padding: 9px 11px;
+  border: 0;
+  background: #fff;
+  color: #1f2933;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-popover button:hover {
+  background: #edf6ff;
+}
+
+.menu-popover button:disabled {
+  color: #94a3b8;
+  cursor: wait;
+}
+
+.toolbar-error {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  max-width: 520px;
+  padding: 9px 11px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #991b1b;
+  font-size: 12px;
+  box-shadow: 0 16px 30px rgba(127, 29, 29, 0.12);
+}
+
 .model-summary span {
   color: #64748b;
   font-size: 12px;

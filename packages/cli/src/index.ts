@@ -34,13 +34,25 @@ function loadApiModel(targetDir: string): unknown {
   };
 }
 
-async function runInit(targetDir: string): Promise<void> {
-  const project = loadEventModelProject(targetDir);
-  const result = writeGraphSidecar(project);
+function printSyncResult(result: ReturnType<typeof writeGraphSidecar>): void {
   console.log(`Wrote ${path.relative(process.cwd(), result.path)}`);
   console.log(`Added: ${result.added.length}`);
   console.log(`Preserved: ${result.preserved.length}`);
   console.log(`Stale: ${result.stale.length}`);
+}
+
+async function runSync(targetDir: string): Promise<void> {
+  const project = loadEventModelProject(targetDir);
+  const result = writeGraphSidecar(project);
+  printSyncResult(result);
+}
+
+function syncMissingGraphSidecar(targetDir: string): void {
+  const project = loadEventModelProject(targetDir);
+  if (readGraphSidecar(project.root)) return;
+
+  console.log("Missing .event-modeling/graph.json; running initial sync...");
+  printSyncResult(writeGraphSidecar(project));
 }
 
 const contentTypes: Record<string, string> = {
@@ -111,6 +123,8 @@ function listenWithFallback(server: http.Server, port: number): Promise<number> 
 }
 
 async function runServer(targetDir?: string): Promise<void> {
+  if (targetDir) syncMissingGraphSidecar(targetDir);
+
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "app");
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
@@ -145,14 +159,21 @@ async function runServer(targetDir?: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (command === "sync") {
+    await runSync(resolveTarget(args[1]));
+    return;
+  }
+
   if (command === "init") {
-    await runInit(resolveTarget(args[1]));
+    console.warn("`emviz init` is deprecated. Use `emviz sync` instead.");
+    await runSync(resolveTarget(args[1]));
     return;
   }
 
   if (command === "--help" || command === "-h") {
     console.log("Usage: emviz [project-dir]");
-    console.log("       emviz init [project-dir]");
+    console.log("       emviz sync [project-dir]");
+    console.log("       emviz init [project-dir]  (deprecated alias for sync)");
     return;
   }
 
