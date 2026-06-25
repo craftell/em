@@ -64,7 +64,7 @@ describe("loadEventModelProject", () => {
     const files: InMemoryEventModelFile[] = [
       {
         path: ".event-modeling/config.yaml",
-        content: "language: ja\npaths:\n  event_model_dir: event-model\n"
+        content: "language: fr\npaths:\n  event_model_dir: event-model\n"
       },
       {
         path: "event-model/events.yaml",
@@ -73,7 +73,7 @@ describe("loadEventModelProject", () => {
       {
         path: "event-model/stories/scope.yaml",
         content: [
-          "name: スコープ選択・認可",
+          "name: Portee et autorisation",
           "slices:",
           "  - event-model/features/scope/staff/staff.slice.yaml",
           "  - event-model/features/scope/role/role.slice.yaml"
@@ -82,22 +82,22 @@ describe("loadEventModelProject", () => {
       {
         path: "event-model/stories/shift.yaml",
         content: [
-          "name: シフトプランの作成と版管理",
+          "name: Planification d'equipe et versions",
           "slices:",
           "  - event-model/features/shift/create/create.slice.yaml"
         ].join("\n")
       },
       {
         path: "event-model/features/scope/staff/staff.slice.yaml",
-        content: "slice: スタッフ管理\nscreen:\n  name: 管理画面\n"
+        content: "slice: Gestion d'equipe\nscreen:\n  name: Tableau de bord\n"
       },
       {
         path: "event-model/features/scope/role/role.slice.yaml",
-        content: "slice: ロール管理\nscreen:\n  name: 管理画面\n"
+        content: "slice: Gestion des roles\nscreen:\n  name: Tableau de bord\n"
       },
       {
         path: "event-model/features/shift/create/create.slice.yaml",
-        content: "slice: シフトプランの作成と版管理\nscreen:\n  name: 管理画面\n"
+        content: "slice: Planification d'equipe et versions\nscreen:\n  name: Tableau de bord\n"
       }
     ];
     const browserProject = loadEventModelProjectFromFiles(files);
@@ -122,7 +122,7 @@ describe("loadEventModelProject", () => {
   });
 
   it("slugifies Unicode letters and numbers instead of dropping them", () => {
-    expect(slugify("AIによるシフト調整 (HITL)")).toBe("aiによるシフト調整-hitl");
-    expect(slugify("スコープ選択・認可")).toBe("スコープ選択-認可");
+    expect(slugify("Planificacion d'equipe 2026")).toBe("planificacion-d-equipe-2026");
+    expect(slugify("Équipe café déjà vu")).toBe("équipe-café-déjà-vu");
   });
 });

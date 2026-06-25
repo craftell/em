@@ -83,13 +83,13 @@ well.
 ## Example
 
 ```yaml
-language: ja
+language: en
 paths:
   event_model_dir: docs/event-model
   features_dir: apps/web/features
   slice_extension: .slice.yaml
 notes: |
-  events_file と stories_dir はデフォルト (event_model_dir 配下) を利用。
+  events_file and stories_dir use defaults under event_model_dir.
 ```
 
 In this example, slices land in `apps/web/features/<story>/<slice>/<slice>.slice.yaml`,

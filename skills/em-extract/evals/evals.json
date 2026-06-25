@@ -6,6 +6,12 @@
       "prompt": "Use .understand-anything/knowledge-graph.json to draft an event model for an existing SaaS billing codebase.",
       "expected_output": "Inspects graph shape, extracts candidate stories/slices/events with confidence labels, asks domain questions, and does not write YAML unless requested.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "The codebase and .understand-anything/knowledge-graph.json changed since the last extraction. Update the existing event model incrementally and show what would be added, updated, stale, or conflicting before writing files.",
+      "expected_output": "Reads the existing model and extraction-state baseline, compares current evidence with prior provenance, proposes add/update/stale/conflict changes, preserves existing YAML decisions, and updates extraction-state only after confirmed writes.",
+      "files": []
     }
   ]
 }
