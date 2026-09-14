@@ -44,6 +44,7 @@ export type GraphDiff = {
   target: {
     label: string;
   };
+  previousGwtNodes?: Record<string, GraphNode>;
   nodeStatus: Record<string, GraphDiffStatus>;
   edgeStatus: Record<string, GraphDiffStatus>;
   summary: {
@@ -296,27 +297,41 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
   const merged = cloneProject(target);
   const existingNodeIds = new Set(merged.nodes.map((node) => node.id));
   const existingEdgeIds = new Set(merged.edges.map((edge) => edge.id));
-  const baseNodesByKey = new Map(base.nodes.map((node) => [nodeKey(node), node]));
-  const targetNodesByKey = new Map(target.nodes.map((node) => [nodeKey(node), node]));
-  const baseNodeKeysById = new Map(base.nodes.map((node) => [node.id, nodeKey(node)]));
-  const targetNodeKeysById = new Map(target.nodes.map((node) => [node.id, nodeKey(node)]));
+  // GWT selectors can repeat across slices and within one slice. Keep their
+  // definition-order occurrence separate without changing sidecar selectors.
+  const diffKeys = (project: EventModelProject) => {
+    const occurrences = new Map<string, number>();
+    return new Map(project.nodes.map((node) => {
+      if (node.type !== "gwt") return [node.id, nodeKey(node)];
+      const key = stableJson({ selector: nodeKey(node), sourcePath: node.sourcePath });
+      const occurrence = occurrences.get(key) ?? 0;
+      occurrences.set(key, occurrence + 1);
+      return [node.id, `${key}:${occurrence}`];
+    }));
+  };
+  const baseNodeKeysById = diffKeys(base);
+  const targetNodeKeysById = diffKeys(target);
+  const baseNodesByKey = new Map(base.nodes.map((node) => [baseNodeKeysById.get(node.id)!, node]));
+  const targetNodesByKey = new Map(target.nodes.map((node) => [targetNodeKeysById.get(node.id)!, node]));
   const nodeStatus: Record<string, GraphDiffStatus> = {};
+  const previousGwtNodes: Record<string, GraphNode> = {};
   const mergedNodeIdByBaseId = new Map<string, string>();
 
   mergeRemovedModelContainers(merged, base);
 
   for (const targetNode of target.nodes) {
-    const key = nodeKey(targetNode);
+    const key = targetNodeKeysById.get(targetNode.id)!;
     const baseNode = baseNodesByKey.get(key);
     if (!baseNode) {
       nodeStatus[targetNode.id] = "added";
       continue;
     }
     nodeStatus[targetNode.id] = stableJson(comparableNode(baseNode)) === stableJson(comparableNode(targetNode)) ? "unchanged" : "changed";
+    if (targetNode.type === "gwt" && nodeStatus[targetNode.id] === "changed") previousGwtNodes[targetNode.id] = structuredClone(baseNode);
   }
 
   for (const baseNode of base.nodes) {
-    const key = nodeKey(baseNode);
+    const key = baseNodeKeysById.get(baseNode.id)!;
     if (targetNodesByKey.has(key)) continue;
     const id = uniqueNodeId(existingNodeIds, baseNode.id);
     mergedNodeIdByBaseId.set(baseNode.id, id);
@@ -356,6 +371,7 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
     diff: {
       base: { label: labels.base ?? "base" },
       target: { label: labels.target ?? "target" },
+      previousGwtNodes,
       nodeStatus,
       edgeStatus,
       summary: {

@@ -122,6 +122,7 @@ export type GraphDiff = {
   target: {
     label: string;
   };
+  previousGwtNodes?: Record<string, ProjectNode>;
   nodeStatus: Record<string, GraphDiffStatus>;
   edgeStatus: Record<string, GraphDiffStatus>;
   summary: {

@@ -374,7 +374,7 @@ export function toFlow(
       height: nodeHeight
     });
 
-    const scenarios = node.type === "gwt" ? project.nodes.filter((candidate) => candidate.type === "gwt" && (node.sourcePath ? candidate.sourcePath === node.sourcePath : candidate.sliceTitle === node.sliceTitle)) : undefined;
+    const scenarios = node.type === "gwt" ? project.nodes.filter((candidate) => candidate.type === "gwt" && (node.sourcePath ? candidate.sourcePath === node.sourcePath : candidate.sliceTitle === node.sliceTitle)).filter((candidate) => !options.diffFilter || options.diffFilter === "all" || options.diffNodeStatus?.[candidate.id] === options.diffFilter) : undefined;
     return {
       id: node.id,
       type: isContainer ? "groupNode" : "eventModelNode",
@@ -386,13 +386,14 @@ export function toFlow(
       data: {
         projectNode: node,
         scenarios,
+        scenarioStatus: options.diffNodeStatus,
         selectedScenarioId: selectedId,
         selected: node.id === selectedId || Boolean(scenarios?.some((scenario) => scenario.id === selectedId)),
         connected: connectedIds.has(node.id),
         diffStatus: options.diffNodeStatus?.[node.id]
       },
       hidden: Boolean(scenarios && scenarios[0]?.id !== node.id) || Boolean(node.storyName && !visibleStories.has(node.storyName)) ||
-        Boolean(options.diffFilter && options.diffFilter !== "all" && options.diffNodeStatus?.[node.id] !== options.diffFilter),
+        Boolean(!scenarios && options.diffFilter && options.diffFilter !== "all" && options.diffNodeStatus?.[node.id] !== options.diffFilter),
       style: isContainer
         ? { width, height, zIndex: node.type === "story" ? -20 : -10, opacity: node.storyName && !visibleStories.has(node.storyName) ? 0.18 : 1 }
         : { width: nodeWidth, height: node.type === "gwt" ? GWT_HEIGHT : undefined, opacity: node.storyName && !visibleStories.has(node.storyName) ? 0.18 : 1 },

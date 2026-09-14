@@ -40,6 +40,7 @@ type CustomNodeData = {
   connected: boolean;
   diffStatus?: GraphDiffStatus;
   scenarios?: ProjectNode[];
+  scenarioStatus?: Record<string, GraphDiffStatus>;
   selectedScenarioId?: string;
 };
 
@@ -87,11 +88,11 @@ function GwtSummary({ nodeData }: { nodeData: CustomNodeData }) {
   return (
     <div className={`em-node em-node-gwt ${nodeData.selected ? "selected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
       <NodeHandles />
-      {nodeData.diffStatus && nodeData.diffStatus !== "unchanged" ? <div className={`diff-badge diff-badge-${nodeData.diffStatus}`}>{nodeData.diffStatus}</div> : null}
       <div className="node-type">GWT · {scenarios.length} cases</div>
+      {nodeData.scenarioStatus ? <div className="gwt-diff-counts">{(["added", "removed", "changed"] as const).map((status) => `${status}: ${scenarios.filter((scenario) => nodeData.scenarioStatus?.[scenario.id] === status).length}`).join(" · ")}</div> : null}
       <div className="gwt-summary nodrag nopan nowheel">
         {scenarios.slice(0, 3).map((scenario) => (
-          <button type="button" key={scenario.id} aria-current={nodeData.selectedScenarioId === scenario.id ? "true" : undefined} onClick={(event) => { event.stopPropagation(); actions.open(scenario.id); }}>{scenario.label}</button>
+          <button type="button" key={scenario.id} aria-current={nodeData.selectedScenarioId === scenario.id ? "true" : undefined} onClick={(event) => { event.stopPropagation(); actions.open(scenario.id); }}><span className="gwt-scenario-name">{scenario.label}</span>{nodeData.scenarioStatus ? <span className="gwt-scenario-status">{` · ${nodeData.scenarioStatus[scenario.id] ?? "unchanged"}`}</span> : null}</button>
         ))}
       </div>
       <div className="gwt-more nodrag nopan nowheel">
@@ -527,7 +528,8 @@ function ImportPanel({
 
 function SourcePanel({
   project,
-  selectedNode,
+  selectedNode: currentNode,
+  diff,
   findings,
   fieldFlows,
   selectedFieldName,
@@ -543,6 +545,7 @@ function SourcePanel({
 }: {
   project: EventModelProject;
   selectedNode?: ProjectNode;
+  diff?: GraphDiff;
   findings: ValidationFinding[];
   fieldFlows: Map<string, FieldFlow>;
   selectedFieldName?: string;
@@ -556,6 +559,9 @@ function SourcePanel({
   onClose: () => void;
   onFocusNode: (id: string) => void;
 }) {
+  const [oldVersionId, setOldVersionId] = useState<string>();
+  const previousNode = currentNode && diff?.nodeStatus[currentNode.id] === "changed" ? diff.previousGwtNodes?.[currentNode.id] : undefined;
+  const selectedNode = currentNode && previousNode && oldVersionId === currentNode?.id ? { ...previousNode, id: currentNode.id } : currentNode;
   const [copied, setCopied] = useState<string>();
   const [nameFilter, setNameFilter] = useState("");
   const listPanel = useRef<HTMLElement>(null);
@@ -596,7 +602,7 @@ function SourcePanel({
         }}>Clear filter</button>
       </div>
       <p role="status">{results.length ? `${results.length} of ${gwtList.length} scenarios` : "No scenarios match this name."}</p>
-      <div className="gwt-all-list">{results.map((scenario) => <button type="button" key={scenario.id} aria-current={selectedNode?.id === scenario.id ? "true" : undefined} onClick={() => onSelect(scenario.id)}>{scenario.label}</button>)}</div>
+      <div className="gwt-all-list">{results.map((scenario) => <button type="button" key={scenario.id} aria-current={selectedNode?.id === scenario.id ? "true" : undefined} onClick={() => onSelect(scenario.id)}>{scenario.label}{diff ? ` · ${diff.nodeStatus[scenario.id] ?? "unchanged"}` : ""}</button>)}</div>
     </aside>;
   }
 
@@ -648,6 +654,8 @@ function SourcePanel({
         </button>
       </div>
       {selectedNode.type === "gwt" ? <section aria-label="Scenario details">
+        {diff && currentNode ? <p>{diff.nodeStatus[currentNode.id]} · {diff.nodeStatus[currentNode.id] === "removed" || oldVersionId === currentNode.id ? "Old version" : "New version"}</p> : null}
+        {previousNode ? <div className="gwt-panel-actions"><button type="button" aria-pressed={oldVersionId !== currentNode?.id} onClick={() => setOldVersionId(undefined)}>New version</button><button type="button" aria-pressed={oldVersionId === currentNode?.id} onClick={() => setOldVersionId(currentNode?.id)}>Old version</button></div> : null}
         {selectedNode.description ? <p>{selectedNode.description}</p> : null}
         <GwtStepList title="Given" items={selectedNode.given} />
         <GwtStepList title="When" items={selectedNode.when} />
@@ -984,7 +992,7 @@ function FlowWorkspace() {
   }, []);
   const gwtActions = useMemo(() => ({ open: focusNode, list: showGwtList }), [focusNode, showGwtList]);
   const gwtListNode = project?.nodes.find((node) => node.id === gwtListId);
-  const gwtList = gwtListNode ? project?.nodes.filter((node) => node.type === "gwt" && (gwtListNode.sourcePath ? node.sourcePath === gwtListNode.sourcePath : node.sliceTitle === gwtListNode.sliceTitle)) : undefined;
+  const gwtList = gwtListNode ? project?.nodes.filter((node) => node.type === "gwt" && (gwtListNode.sourcePath ? node.sourcePath === gwtListNode.sourcePath : node.sliceTitle === gwtListNode.sliceTitle)).filter((node) => !diff || diffFilter === "all" || diff.nodeStatus[node.id] === diffFilter) : undefined;
   useEffect(() => {
     if (gwtListId || selectedNode?.type === "gwt") {
       const selectedResult = gwtListId ? document.querySelector<HTMLElement>(".gwt-all-list button[aria-current]") : null;
@@ -1162,6 +1170,7 @@ function FlowWorkspace() {
       ) : null}
       <SourcePanel
         key={(gwtListNode ?? selectedNode)?.type === "gwt" ? `gwt:${(gwtListNode ?? selectedNode)?.sourcePath ?? (gwtListNode ?? selectedNode)?.sliceTitle}` : "selection"}
+        diff={diff}
         gwtList={gwtList}
         onGwtList={showGwtList}
         onClose={clearFocus}

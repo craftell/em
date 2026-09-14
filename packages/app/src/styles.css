@@ -892,9 +892,8 @@ pre {
 }
 
 .gwt-summary button {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: flex;
+  align-items: center;
   overflow: hidden;
   line-height: 16px;
   font-size: 12px;
@@ -1272,3 +1271,14 @@ pre {
   box-sizing: border-box;
   padding: 8px;
 }
+
+/* Keep diff counts inside the fixed-height summary without moving the diagram. */
+.gwt-diff-counts { font-size: 10px; line-height: 14px; }
+.em-node-gwt:has(.gwt-diff-counts) { padding-block: 6px; }
+.gwt-scenario-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.gwt-scenario-status { flex-shrink: 0; font-size: 10px; }

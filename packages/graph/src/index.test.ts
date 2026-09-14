@@ -75,3 +75,25 @@ describe("graph diff", () => {
     expect(result.diff.summary.nodes.changed).toBe(1);
   });
 });
+
+
+it("keeps GWT old bodies, repeated names, slice identity and removed ID collisions separate", () => {
+  const base = loadEventModelProject(new URL("../../..", import.meta.url).pathname);
+  const scenario = base.nodes.find((node) => node.type === "gwt")!;
+  base.nodes = [
+    { ...scenario, id: "one", sourcePath: "a.yaml", label: "Same", sourceName: "Same", description: "old first" },
+    { ...scenario, id: "two", sourcePath: "a.yaml", label: "Same", sourceName: "Same", description: "old second" },
+    { ...scenario, id: "three", sourcePath: "b.yaml", label: "Same", sourceName: "Same", description: "other slice" },
+    { ...scenario, id: "collision", sourcePath: "a.yaml", label: "Removed", sourceName: "Removed", description: "deleted body" }
+  ];
+  base.edges = [];
+  const target = structuredClone(base);
+  target.nodes[1].description = "new second";
+  target.nodes[3] = { ...target.nodes[3], label: "Added", sourceName: "Added", description: "added body" };
+  const result = diffEventModelProjects(base, target);
+  expect(result.diff.nodeStatus).toEqual({ one: "unchanged", two: "changed", three: "unchanged", collision: "added", "removed:collision": "removed" });
+  expect(result.diff.previousGwtNodes?.two.description).toBe("old second");
+  expect(result.project.nodes.map((node) => node.id)).toEqual(["one", "two", "three", "collision", "removed:collision"]);
+  expect(result.project.nodes.at(-1)?.description).toBe("deleted body");
+  expect(base.nodes[1].description).toBe("old second");
+});
