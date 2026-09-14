@@ -26,6 +26,8 @@ type NodeData = {
   selected: boolean;
   connected: boolean;
   diffStatus?: GraphDiffStatus;
+  scenarios?: ProjectNode[];
+  selectedScenarioId?: string;
 };
 
 function edgeColor(kind: string): string {
@@ -90,14 +92,16 @@ function rowWidth(count: number, nodeWidth: number): number {
   return count === 0 ? 0 : count * nodeWidth + (count - 1) * ROW_GAP_X;
 }
 
-function sliceNodes(project: EventModelProject, sliceTitle: string, type: ProjectNode["type"]): ProjectNode[] {
-  return project.nodes.filter((node) => node.sliceTitle === sliceTitle && node.type === type);
+function sliceNodes(project: EventModelProject, slicePath: string, type: ProjectNode["type"]): ProjectNode[] {
+  const slice = project.slices.find((candidate) => candidate.path === slicePath);
+  return project.nodes.filter((node) => node.type === type && (node.sourcePath ? node.sourcePath === slicePath : node.sliceTitle === slice?.title));
 }
 
-function eventNodesForSlice(project: EventModelProject, nodeById: Map<string, ProjectNode>, sliceTitle: string): ProjectNode[] {
+function eventNodesForSlice(project: EventModelProject, nodeById: Map<string, ProjectNode>, slicePath: string): ProjectNode[] {
+  const commands = new Set(sliceNodes(project, slicePath, "command").map((node) => node.id));
   const eventIds = new Set(
     project.edges
-      .filter((edge) => edge.kind === "command-event" && nodeById.get(edge.source)?.sliceTitle === sliceTitle)
+      .filter((edge) => edge.kind === "command-event" && commands.has(edge.source))
       .map((edge) => edge.target)
   );
 
@@ -107,20 +111,20 @@ function eventNodesForSlice(project: EventModelProject, nodeById: Map<string, Pr
 function buildSliceMetrics(project: EventModelProject, nodeById: Map<string, ProjectNode>): Map<string, SliceMetrics> {
   return new Map(
     project.slices.map((slice) => {
-      const queries = sliceNodes(project, slice.title, "query");
-      const commands = sliceNodes(project, slice.title, "command");
-      const events = eventNodesForSlice(project, nodeById, slice.title);
-      const gwts = sliceNodes(project, slice.title, "gwt");
+      const queries = sliceNodes(project, slice.path, "query");
+      const commands = sliceNodes(project, slice.path, "command");
+      const events = eventNodesForSlice(project, nodeById, slice.path);
+      const gwts = sliceNodes(project, slice.path, "gwt");
       const queryBandWidth = rowWidth(queries.length, NODE_WIDTH);
       const commandBandWidth = rowWidth(commands.length, NODE_WIDTH);
       const mainRowWidth = queryBandWidth + commandBandWidth + (queryBandWidth > 0 && commandBandWidth > 0 ? MAIN_BAND_GAP_X : 0);
       const eventRowWidth = rowWidth(events.length, NODE_WIDTH);
-      const gwtRowWidth = rowWidth(gwts.length, GWT_WIDTH);
+      const gwtRowWidth = gwts.length ? GWT_WIDTH : 0;
       const width = Math.max(MIN_SLICE_WIDTH, mainRowWidth + SLICE_PADDING_X * 2, eventRowWidth + SLICE_PADDING_X * 2, gwtRowWidth + SLICE_PADDING_X * 2);
       const height = gwts.length > 0 ? GWT_ROW_Y + GWT_HEIGHT + 36 : MIN_SLICE_HEIGHT;
 
       return [
-        slice.title,
+        slice.path,
         {
           width,
           height,
@@ -140,9 +144,9 @@ function buildStoryLayouts(project: EventModelProject, sliceMetrics: Map<string,
 
   for (const story of project.stories) {
     const storySlices = project.slices.filter((slice) => slice.storyName === story.name);
-    const totalSliceWidth = storySlices.reduce((sum, slice) => sum + (sliceMetrics.get(slice.title)?.width ?? MIN_SLICE_WIDTH), 0);
+    const totalSliceWidth = storySlices.reduce((sum, slice) => sum + (sliceMetrics.get(slice.path)?.width ?? MIN_SLICE_WIDTH), 0);
     const width = Math.max(totalSliceWidth + Math.max(storySlices.length - 1, 0) * SLICE_GAP_X, MIN_SLICE_WIDTH);
-    const maxSliceHeight = Math.max(...storySlices.map((slice) => sliceMetrics.get(slice.title)?.height ?? MIN_SLICE_HEIGHT), MIN_SLICE_HEIGHT);
+    const maxSliceHeight = Math.max(...storySlices.map((slice) => sliceMetrics.get(slice.path)?.height ?? MIN_SLICE_HEIGHT), MIN_SLICE_HEIGHT);
     const height = STORY_HEADER_HEIGHT + maxSliceHeight + STORY_PADDING_BOTTOM;
     layouts.set(story.name, { y: nextY, width, height });
     nextY += height + STORY_GAP_Y;
@@ -259,6 +263,7 @@ export function toFlow(
   const storyIndexes = storyIndex(project);
   const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
   const sliceMetrics = buildSliceMetrics(project, nodeById);
+  const sliceKey = (node?: ProjectNode) => node?.sourcePath ?? project.slices.find((slice) => slice.title === (node?.sliceTitle ?? node?.label))?.path ?? "";
   const storyLayouts = buildStoryLayouts(project, sliceMetrics);
   const positions = new Map<string, { x: number; y: number }>();
   const rects = new Map<string, Rect>();
@@ -290,16 +295,16 @@ export function toFlow(
       if (!slice) continue;
       const storyLayout = storyLayouts.get(story.name) ?? { y: STORY_Y, width: MIN_SLICE_WIDTH, height: MIN_SLICE_HEIGHT };
       const sliceX = nextSliceXByStory.get(story.name) ?? STORY_X;
-      sliceOrigins.set(slice.title, { x: sliceX, y: storyLayout.y + STORY_HEADER_HEIGHT });
-      nextSliceXByStory.set(story.name, sliceX + (sliceMetrics.get(slice.title)?.width ?? MIN_SLICE_WIDTH) + SLICE_GAP_X);
+      sliceOrigins.set(slice.path, { x: sliceX, y: storyLayout.y + STORY_HEADER_HEIGHT });
+      nextSliceXByStory.set(story.name, sliceX + (sliceMetrics.get(slice.path)?.width ?? MIN_SLICE_WIDTH) + SLICE_GAP_X);
     }
   }
 
   for (const slice of project.slices) {
-    if (sliceOrigins.has(slice.title)) continue;
+    if (sliceOrigins.has(slice.path)) continue;
     const storyY = STORY_Y + (storyIndexes.get(slice.storyName ?? "") ?? 0) * (MIN_SLICE_HEIGHT + STORY_HEADER_HEIGHT + STORY_PADDING_BOTTOM + STORY_GAP_Y);
     const sliceX = STORY_X;
-    sliceOrigins.set(slice.title, { x: sliceX, y: storyY + STORY_HEADER_HEIGHT });
+    sliceOrigins.set(slice.path, { x: sliceX, y: storyY + STORY_HEADER_HEIGHT });
   }
 
   for (const node of project.nodes) {
@@ -307,20 +312,20 @@ export function toFlow(
       positions.set(node.id, { x: STORY_X - 20, y: storyLayouts.get(node.label)?.y ?? STORY_Y });
     }
     if (node.type === "slice") {
-      const origin = sliceOrigins.get(node.label) ?? { x: STORY_X, y: STORY_Y };
+      const origin = sliceOrigins.get(sliceKey(node)) ?? { x: STORY_X, y: STORY_Y };
       positions.set(node.id, origin);
     }
     if (node.type === "screen" || node.type === "processor") {
-      const origin = sliceOrigins.get(node.sliceTitle ?? "") ?? { x: STORY_X, y: STORY_Y };
-      const metrics = sliceMetrics.get(node.sliceTitle ?? "");
+      const origin = sliceOrigins.get(sliceKey(node)) ?? { x: STORY_X, y: STORY_Y };
+      const metrics = sliceMetrics.get(sliceKey(node));
       const sliceWidth = metrics?.width ?? MIN_SLICE_WIDTH;
       positions.set(node.id, { x: origin.x + (sliceWidth - NODE_WIDTH) / 2, y: origin.y + SCREEN_Y });
     }
   }
 
   for (const slice of project.slices) {
-    const origin = sliceOrigins.get(slice.title) ?? { x: STORY_X, y: STORY_Y };
-    const metrics = sliceMetrics.get(slice.title);
+    const origin = sliceOrigins.get(slice.path) ?? { x: STORY_X, y: STORY_Y };
+    const metrics = sliceMetrics.get(slice.path);
     const sliceWidth = metrics?.width ?? MIN_SLICE_WIDTH;
     if (!metrics) continue;
 
@@ -338,15 +343,17 @@ export function toFlow(
     });
 
     positionRow(metrics.eventIds, positions, origin, sliceWidth, EVENT_ROW_Y, NODE_WIDTH);
-    positionRow(metrics.gwtIds, positions, origin, sliceWidth, GWT_ROW_Y, GWT_WIDTH);
+    for (const id of metrics.gwtIds) {
+      positions.set(id, { x: origin.x + (sliceWidth - GWT_WIDTH) / 2, y: origin.y + GWT_ROW_Y });
+    }
   }
 
   for (const event of project.nodes.filter((node) => node.type === "event")) {
     const producerEdge = project.edges.find((edge) => edge.kind === "command-event" && edge.target === event.id);
     const producer = producerEdge ? nodeById.get(producerEdge.source) : undefined;
     if (!positions.has(event.id)) {
-      const origin = sliceOrigins.get(producer?.sliceTitle ?? "") ?? { x: STORY_X, y: STORY_Y };
-      const metrics = sliceMetrics.get(producer?.sliceTitle ?? "");
+      const origin = sliceOrigins.get(sliceKey(producer)) ?? { x: STORY_X, y: STORY_Y };
+      const metrics = sliceMetrics.get(sliceKey(producer));
       positions.set(event.id, { x: origin.x + ((metrics?.width ?? MIN_SLICE_WIDTH) - NODE_WIDTH) / 2, y: origin.y + EVENT_ROW_Y });
     }
     event.storyName = producer?.storyName;
@@ -355,8 +362,8 @@ export function toFlow(
   const nodes = project.nodes.map((node) => {
     const position = positions.get(node.id) ?? { x: 0, y: 0 };
     const isContainer = node.type === "story" || node.type === "slice";
-    const width = node.type === "story" ? storyLayouts.get(node.label)?.width ?? MIN_SLICE_WIDTH : sliceMetrics.get(node.label)?.width ?? MIN_SLICE_WIDTH;
-    const height = node.type === "story" ? storyLayouts.get(node.label)?.height ?? MIN_SLICE_HEIGHT : sliceMetrics.get(node.label)?.height ?? MIN_SLICE_HEIGHT;
+    const width = node.type === "story" ? storyLayouts.get(node.label)?.width ?? MIN_SLICE_WIDTH : sliceMetrics.get(sliceKey(node))?.width ?? MIN_SLICE_WIDTH;
+    const height = node.type === "story" ? storyLayouts.get(node.label)?.height ?? MIN_SLICE_HEIGHT : sliceMetrics.get(sliceKey(node))?.height ?? MIN_SLICE_HEIGHT;
     const nodeWidth = isContainer ? width : node.type === "gwt" ? GWT_WIDTH : NODE_WIDTH;
     const nodeHeight = isContainer ? height : node.type === "gwt" ? GWT_HEIGHT : NODE_HEIGHT;
 
@@ -367,19 +374,24 @@ export function toFlow(
       height: nodeHeight
     });
 
+    const scenarios = node.type === "gwt" ? project.nodes.filter((candidate) => candidate.type === "gwt" && (node.sourcePath ? candidate.sourcePath === node.sourcePath : candidate.sliceTitle === node.sliceTitle)) : undefined;
     return {
       id: node.id,
       type: isContainer ? "groupNode" : "eventModelNode",
       position,
+      initialWidth: isContainer || node.type === "gwt" ? nodeWidth : undefined,
+      initialHeight: isContainer || node.type === "gwt" ? nodeHeight : undefined,
       selectable: true,
       draggable: false,
       data: {
         projectNode: node,
-        selected: node.id === selectedId,
+        scenarios,
+        selectedScenarioId: selectedId,
+        selected: node.id === selectedId || Boolean(scenarios?.some((scenario) => scenario.id === selectedId)),
         connected: connectedIds.has(node.id),
         diffStatus: options.diffNodeStatus?.[node.id]
       },
-      hidden: Boolean(node.storyName && !visibleStories.has(node.storyName)) ||
+      hidden: Boolean(scenarios && scenarios[0]?.id !== node.id) || Boolean(node.storyName && !visibleStories.has(node.storyName)) ||
         Boolean(options.diffFilter && options.diffFilter !== "all" && options.diffNodeStatus?.[node.id] !== options.diffFilter),
       style: isContainer
         ? { width, height, zIndex: node.type === "story" ? -20 : -10, opacity: node.storyName && !visibleStories.has(node.storyName) ? 0.18 : 1 }

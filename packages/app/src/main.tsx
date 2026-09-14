@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Background,
@@ -39,7 +39,11 @@ type CustomNodeData = {
   selected: boolean;
   connected: boolean;
   diffStatus?: GraphDiffStatus;
+  scenarios?: ProjectNode[];
+  selectedScenarioId?: string;
 };
+
+const GwtActions = React.createContext<{ open: (id: string) => void; list: (id: string) => void }>({ open: () => {}, list: () => {} });
 
 function NodeHandles() {
   return (
@@ -64,11 +68,34 @@ function GwtStepList({ title, items }: { title: string; items?: ProjectNode["giv
       <div className="gwt-step-title">{title}</div>
       <div className="gwt-step-items">
         {visibleItems.map((item, index) => (
-          <div className={`gwt-step-item gwt-step-item-${item.type ?? "empty"}`} key={`${item.type ?? "empty"}-${item.name ?? index}`}>
+          <div className={`gwt-step-item gwt-step-item-${item.type ?? "empty"}`} key={`${index}-${item.type ?? "empty"}-${item.name ?? ""}`}>
             <span>{item.type ?? "empty"}</span>
-            <strong>{item.name ?? "empty"}</strong>
+            <div className="gwt-item-content">
+              <strong>{item.name ?? "empty"}</strong>
+              {item.fields ? <pre>{item.fields}</pre> : null}
+            </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function GwtSummary({ nodeData }: { nodeData: CustomNodeData }) {
+  const actions = React.useContext(GwtActions);
+  const scenarios = nodeData.scenarios ?? [];
+  return (
+    <div className={`em-node em-node-gwt ${nodeData.selected ? "selected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
+      <NodeHandles />
+      {nodeData.diffStatus && nodeData.diffStatus !== "unchanged" ? <div className={`diff-badge diff-badge-${nodeData.diffStatus}`}>{nodeData.diffStatus}</div> : null}
+      <div className="node-type">GWT · {scenarios.length} cases</div>
+      <div className="gwt-summary nodrag nopan nowheel">
+        {scenarios.slice(0, 3).map((scenario) => (
+          <button type="button" key={scenario.id} aria-current={nodeData.selectedScenarioId === scenario.id ? "true" : undefined} onClick={(event) => { event.stopPropagation(); actions.open(scenario.id); }}>{scenario.label}</button>
+        ))}
+      </div>
+      <div className="gwt-more nodrag nopan nowheel">
+        {scenarios.length > 3 ? <button type="button" onClick={(event) => { event.stopPropagation(); actions.list(nodeData.projectNode.id); }}>+{scenarios.length - 3} more</button> : null}
       </div>
     </div>
   );
@@ -78,22 +105,7 @@ function EventModelNode({ data }: NodeProps) {
   const nodeData = data as CustomNodeData;
   const node = nodeData.projectNode;
   const diffBadge = nodeData.diffStatus && nodeData.diffStatus !== "unchanged" ? <div className={`diff-badge diff-badge-${nodeData.diffStatus}`}>{nodeData.diffStatus}</div> : null;
-  if (node.type === "gwt") {
-    return (
-      <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
-        <NodeHandles />
-        {diffBadge}
-        <div className="node-type">GWT case</div>
-        <div className="node-label">{node.label}</div>
-        {node.description ? <div className="gwt-description">{node.description}</div> : null}
-        <div className="gwt-steps">
-          <GwtStepList title="Given" items={node.given} />
-          <GwtStepList title="When" items={node.when} />
-          <GwtStepList title="Then" items={node.then} />
-        </div>
-      </div>
-    );
-  }
+  if (node.type === "gwt") return <GwtSummary nodeData={nodeData} />;
 
   return (
     <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
@@ -523,7 +535,11 @@ function SourcePanel({
   onSelectField,
   onClearField,
   onPreviewConnection,
-  onClearPreview
+  onClearPreview,
+  gwtList,
+  onGwtList,
+  onClose,
+  onFocusNode
 }: {
   project: EventModelProject;
   selectedNode?: ProjectNode;
@@ -535,8 +551,22 @@ function SourcePanel({
   onClearField: () => void;
   onPreviewConnection: (edgeId: string) => void;
   onClearPreview: () => void;
+  gwtList?: ProjectNode[];
+  onGwtList: (id: string) => void;
+  onClose: () => void;
+  onFocusNode: (id: string) => void;
 }) {
   const [copied, setCopied] = useState<string>();
+  const [nameFilter, setNameFilter] = useState("");
+  const listPanel = useRef<HTMLElement>(null);
+  const listScroll = useRef(0);
+  const showingList = Boolean(gwtList);
+  useLayoutEffect(() => {
+    if (showingList && listPanel.current) listPanel.current.scrollTop = listScroll.current;
+  }, [showingList]);
+  const stopPanelKeys = (event: React.KeyboardEvent) => {
+    if (event.key !== "Escape") event.stopPropagation();
+  };
 
   const copyPanelText = useCallback((key: string, value: string) => {
     void navigator.clipboard?.writeText(value).then(() => {
@@ -544,6 +574,31 @@ function SourcePanel({
       window.setTimeout(() => setCopied((current) => current === key ? undefined : current), 1400);
     });
   }, []);
+
+  if (gwtList) {
+    const needle = nameFilter.trim().toLowerCase();
+    const results = gwtList.filter((scenario) => scenario.label.toLowerCase().includes(needle));
+    return <aside ref={listPanel} className="panel panel-right gwt-panel" aria-label="GWT scenarios" onKeyDown={stopPanelKeys} onKeyUp={stopPanelKeys} onScroll={(event) => { listScroll.current = event.currentTarget.scrollTop; }}>
+      <button type="button" onClick={onClose}>Close</button>
+      <h2>{gwtList[0]?.sliceTitle} · All scenarios ({gwtList.length})</h2>
+      <div className="gwt-filter">
+        <label htmlFor="gwt-name-filter">Filter by scenario name</label>
+        <input id="gwt-name-filter" type="search" value={nameFilter} onChange={(event) => {
+          setNameFilter(event.target.value);
+          listScroll.current = 0;
+          if (listPanel.current) listPanel.current.scrollTop = 0;
+        }} />
+        <button type="button" disabled={!nameFilter} onClick={() => {
+          setNameFilter("");
+          listScroll.current = 0;
+          if (listPanel.current) listPanel.current.scrollTop = 0;
+          listPanel.current?.querySelector("input")?.focus({ preventScroll: true });
+        }}>Clear filter</button>
+      </div>
+      <p role="status">{results.length ? `${results.length} of ${gwtList.length} scenarios` : "No scenarios match this name."}</p>
+      <div className="gwt-all-list">{results.map((scenario) => <button type="button" key={scenario.id} aria-current={selectedNode?.id === scenario.id ? "true" : undefined} onClick={() => onSelect(scenario.id)}>{scenario.label}</button>)}</div>
+    </aside>;
+  }
 
   if (!selectedNode) {
     return (
@@ -578,19 +633,27 @@ function SourcePanel({
   const prompt = `Please update this event model node.\n\nReference:\n${reference}\n\nSource path:\n${selectedNode.sourcePath ?? "unknown"}\n\nCurrent context:\n${yaml}\n\nGoal:\n`;
 
   return (
-    <aside className="panel panel-right">
+    <aside className={`panel panel-right ${selectedNode.type === "gwt" ? "gwt-panel" : ""}`} aria-label="Node details" onKeyDown={selectedNode.type === "gwt" ? stopPanelKeys : undefined} onKeyUp={selectedNode.type === "gwt" ? stopPanelKeys : undefined}>
+      {selectedNode.type === "gwt" ? <div className="gwt-panel-actions"><button type="button" onClick={() => onGwtList(selectedNode.id)}>All scenarios</button><button type="button" onClick={onClose}>Close</button></div> : null}
       <div className="panel-heading">
         <h2>{selectedNode.label}</h2>
         <button
           type="button"
           className="icon-button"
-          onClick={() => onSelect(selectedNode.id)}
+          onClick={() => onFocusNode(selectedNode.id)}
           aria-label="Focus selected node"
           title="Focus selected node"
         >
           <span className="target-icon" aria-hidden="true" />
         </button>
       </div>
+      {selectedNode.type === "gwt" ? <section aria-label="Scenario details">
+        {selectedNode.description ? <p>{selectedNode.description}</p> : null}
+        <GwtStepList title="Given" items={selectedNode.given} />
+        <GwtStepList title="When" items={selectedNode.when} />
+        <GwtStepList title="Then" items={selectedNode.then} />
+        <p className="muted">YAML below is the source slice, not an individual scenario excerpt.</p>
+      </section> : null}
       <div className="meta-row"><span>Type</span><strong>{selectedNode.type}</strong></div>
       <div className="meta-row"><span>Reference</span><code>{reference}</code></div>
       {selectedNode.sourcePath ? <div className="meta-row"><span>Source</span><code>{selectedNode.sourcePath}</code></div> : null}
@@ -609,7 +672,7 @@ function SourcePanel({
           />
           <CopyAction
             label="YAML"
-            description="Source excerpt for this node"
+            description={selectedNode.type === "gwt" ? "Source YAML for the whole slice" : "Source excerpt for this node"}
             value={yaml}
             copiedKey="YAML"
             onCopy={copyPanelText}
@@ -728,7 +791,7 @@ function SourcePanel({
           <span>{finding.message}</span>
         </div>
       ))}
-      <h3>Source</h3>
+      <h3>{selectedNode.type === "gwt" ? "Source slice YAML" : "Source"}</h3>
       <pre>{yaml}</pre>
     </aside>
   );
@@ -809,6 +872,8 @@ function FlowWorkspace() {
   const [exportState, setExportState] = useState<"idle" | "exporting">("idle");
   const [exportError, setExportError] = useState<string>();
   const [selectedId, setSelectedId] = useState<string>();
+  const [gwtListId, setGwtListId] = useState<string>();
+  const gwtOpener = useRef<HTMLElement | null>(null);
   const [backStack, setBackStack] = useState<string[]>([]);
   const [forwardStack, setForwardStack] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -879,15 +944,22 @@ function FlowWorkspace() {
     return project.nodes.filter((node) => `${node.label} ${node.type} ${node.sourcePath ?? ""}`.toLowerCase().includes(needle)).slice(0, 8);
   }, [project, search]);
 
-  const focusNode = useCallback((nodeId: string, recordHistory = true) => {
+  const focusNode = useCallback((nodeId: string, recordHistory = true, moveToNode = false) => {
     const node = flow.nodes.find((candidate) => candidate.id === nodeId);
     setHoveredEdgeId(undefined);
     if (recordHistory && selectedId && selectedId !== nodeId) {
       setBackStack((stack) => [...stack, selectedId]);
       setForwardStack([]);
     }
+    const isGwt = node?.data.projectNode.type === "gwt";
+    if (isGwt && !gwtOpener.current) {
+      const active = document.activeElement;
+      gwtOpener.current = active?.closest(".search-results") ? document.querySelector<HTMLInputElement>(".search-box input") : active instanceof HTMLElement ? active : null;
+    }
+    if (!isGwt) gwtOpener.current = null;
+    setGwtListId(undefined);
     setSelectedId(nodeId);
-    if (node) {
+    if (node && (!isGwt || moveToNode)) {
       void setCenter(node.position.x + 80, node.position.y + 60, { zoom: 1.2, duration: 350 });
     }
   }, [flow.nodes, selectedId, setCenter]);
@@ -896,7 +968,29 @@ function FlowWorkspace() {
     setSelectedId(undefined);
     setHoveredEdgeId(undefined);
     setSelectedFieldName(undefined);
+    setGwtListId(undefined);
+    const opener = gwtOpener.current;
+    gwtOpener.current = null;
+    if (!opener) return;
+    requestAnimationFrame(() => {
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+      else document.querySelector<HTMLElement>(".canvas")?.focus({ preventScroll: true });
+    });
   }, []);
+
+  const showGwtList = useCallback((id: string) => {
+    if (!gwtOpener.current) gwtOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setGwtListId(id);
+  }, []);
+  const gwtActions = useMemo(() => ({ open: focusNode, list: showGwtList }), [focusNode, showGwtList]);
+  const gwtListNode = project?.nodes.find((node) => node.id === gwtListId);
+  const gwtList = gwtListNode ? project?.nodes.filter((node) => node.type === "gwt" && (gwtListNode.sourcePath ? node.sourcePath === gwtListNode.sourcePath : node.sliceTitle === gwtListNode.sliceTitle)) : undefined;
+  useEffect(() => {
+    if (gwtListId || selectedNode?.type === "gwt") {
+      const selectedResult = gwtListId ? document.querySelector<HTMLElement>(".gwt-all-list button[aria-current]") : null;
+      (selectedResult ?? document.querySelector<HTMLElement>(".gwt-panel button"))?.focus({ preventScroll: true });
+    }
+  }, [gwtListId, selectedNode?.id, selectedNode?.type]);
 
   const previewConnection = useCallback((edgeId: string) => {
     const edge = project?.edges.find((candidate) => candidate.id === edgeId);
@@ -1067,6 +1161,11 @@ function FlowWorkspace() {
         />
       ) : null}
       <SourcePanel
+        key={(gwtListNode ?? selectedNode)?.type === "gwt" ? `gwt:${(gwtListNode ?? selectedNode)?.sourcePath ?? (gwtListNode ?? selectedNode)?.sliceTitle}` : "selection"}
+        gwtList={gwtList}
+        onGwtList={showGwtList}
+        onClose={clearFocus}
+        onFocusNode={(id) => focusNode(id, true, true)}
         project={project}
         selectedNode={selectedNode}
         findings={selectedFindings}
@@ -1078,7 +1177,8 @@ function FlowWorkspace() {
         onPreviewConnection={previewConnection}
         onClearPreview={clearPreviewConnection}
       />
-      <main className="canvas">
+      <main className="canvas" tabIndex={-1} aria-label="Event model diagram">
+        <GwtActions.Provider value={gwtActions}>
         <ReactFlow
           nodes={flow.nodes}
           edges={flow.edges}
@@ -1094,6 +1194,7 @@ function FlowWorkspace() {
           <Background gap={18} size={1} />
           <Controls />
         </ReactFlow>
+        </GwtActions.Provider>
       </main>
     </div>
   );

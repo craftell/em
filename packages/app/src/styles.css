@@ -879,9 +879,109 @@ pre {
 }
 
 .em-node-gwt {
-  min-height: 170px;
+  height: 170px;
+  overflow: hidden;
   background: #f8f5ff;
   border-color: #a78bfa;
+}
+
+.gwt-summary {
+  height: 108px;
+  display: grid;
+  grid-template-rows: repeat(3, 36px);
+}
+
+.gwt-summary button {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 16px;
+  font-size: 12px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  padding: 2px;
+}
+
+.gwt-more {
+  height: 22px;
+}
+
+.gwt-more button {
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.gwt-panel {
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+}
+
+.gwt-panel h2 {
+  overflow-wrap: anywhere;
+}
+
+.gwt-panel .gwt-step {
+  margin: 12px 0;
+}
+
+.gwt-item-content {
+  min-width: 0;
+}
+
+.gwt-panel .gwt-step-item strong,
+.gwt-panel pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.gwt-panel .gwt-step-item strong {
+  overflow: visible;
+}
+
+.gwt-all-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gwt-summary button[aria-current],
+.gwt-all-list button[aria-current] {
+  background: #ddd6fe;
+  font-weight: 700;
+}
+
+.gwt-all-list button {
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 8px;
+}
+
+.gwt-panel-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gwt-summary button:focus-visible,
+.gwt-more button:focus-visible,
+.gwt-panel button:focus-visible,
+.gwt-panel input:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: -3px;
+}
+
+@media (max-width: 700px) {
+  .canvas {
+    right: 0;
+  }
+
+  .panel-right {
+    width: min(330px, calc(100vw - 32px));
+  }
 }
 
 .node-type {
@@ -1159,4 +1259,16 @@ pre {
   border-radius: 7px;
   background: #fff1f0;
   color: #b42318 !important;
+}
+
+.gwt-filter {
+  display: grid;
+  gap: 8px;
+}
+
+.gwt-filter input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 8px;
 }
