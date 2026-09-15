@@ -18,6 +18,12 @@ The saved HTML (4/100 cases) and both live/saved diff inputs also run the same k
 
 Diff checks also compare the merged order with explicit input-derived IDs, assert remaining counts for every filter, and verify structured When content and reference/source identity while switching versions. Each selection checks that the summary and diagram geometry remain unchanged.
 
+## Connection identity regression
+
+The live and saved-HTML suite now parses actual YAML with 12 slices sharing command, query, and scenario names. It verifies direct incoming/outgoing neighbors, navigation to the correct source file, copied connection context, unique canvas IDs, deduplicated references, and disconnected GWT nodes. Hand-built graph fixtures alone cannot catch parser-generated ID collisions.
+
+The parser suite checks both disk and browser loading with 40 same-named definitions, colliding slugs and paths, duplicate references, repeated GWT names, missing event references, and legitimate cross-slice event consumption. The graph suite also verifies that diff views keep removed edges attached to the correct source file when slice titles and command names repeat.
+
 ## Local implementation check (2026-09-14)
 
 Existing production edits were retained. This pass strengthened input-derived diff ordering, remaining counts, structured old/new content, source identity, and duplicate/removed-ID collision checks in both live and exported views.

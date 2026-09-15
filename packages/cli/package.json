@@ -1,6 +1,6 @@
 {
   "name": "emviz",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Interactive Event Modeling visualizer CLI.",
   "type": "module",
   "keywords": [

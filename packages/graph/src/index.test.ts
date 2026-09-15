@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEventModelProject } from "@emviz/parser";
+import { loadEventModelProject, loadEventModelProjectFromFiles } from "@emviz/parser";
 import { buildGraphSidecar, diffEventModelProjects, resolveSidecarNode } from "./index.js";
 
 describe("graph sidecar", () => {
@@ -14,6 +14,50 @@ describe("graph sidecar", () => {
 });
 
 describe("graph diff", () => {
+  it("keeps removed connections on their original slice when titles and node names repeat", () => {
+    const files = [
+      { path: "event-model/events.yaml", content: "events:\n  FirstSaved: {}\n  SecondSaved: {}\n" },
+      ...["First", "Second"].map((name) => ({
+        path: `event-model/features/${name}.slice.yaml`,
+        content: `slice: Same title\nscreen:\n  executes: [Save]\ncommands:\n  - name: Save\n    produces: [${name}Saved]\n`
+      }))
+    ];
+    const base = loadEventModelProjectFromFiles(files);
+    const target = loadEventModelProjectFromFiles(files.map((file) => ({
+      ...file,
+      content: file.path.endsWith("First.slice.yaml") ? file.content.replace("[FirstSaved]", "[]") : file.content
+    })));
+    const firstCommand = target.nodes.find((node) => node.type === "command" && node.sourcePath?.endsWith("First.slice.yaml"))!;
+    const result = diffEventModelProjects(base, target);
+    const removedConnection = result.project.edges.find((edge) => result.diff.edgeStatus[edge.id] === "removed")!;
+    expect(removedConnection.source).toBe(firstCommand.id);
+    expect(result.project.nodes.find((node) => node.id === removedConnection.target)?.label).toBe("FirstSaved");
+    expect(result.diff.summary.nodes).toEqual({ added: 0, removed: 0, changed: 0, unchanged: target.nodes.length });
+    expect(new Set(result.project.edges.map((edge) => edge.id)).size).toBe(result.project.edges.length);
+  });
+
+  it("remaps connections correctly when adding a name collision changes an existing handle", () => {
+    const files = [
+      { path: "event-model/events.yaml", content: "events:\n  FirstSaved: {}\n  SecondSaved: {}\n" },
+      { path: "event-model/features/First.slice.yaml", content: "slice: Same title\ncommands:\n  - name: Save\n    produces: [FirstSaved]\n" }
+    ];
+    const base = loadEventModelProjectFromFiles(files);
+    const target = loadEventModelProjectFromFiles([
+      ...files.map((file) => ({ ...file, content: file.content.replace("[FirstSaved]", "[]") })),
+      { path: "event-model/features/Second.slice.yaml", content: "slice: Same title\ncommands:\n  - name: Save\n    produces: [SecondSaved]\n" }
+    ]);
+    const firstCommand = target.nodes.find((node) => node.type === "command" && node.sourcePath?.endsWith("First.slice.yaml"))!;
+    expect(firstCommand.id).not.toBe(base.nodes.find((node) => node.type === "command")!.id);
+    for (const [previous, next] of [[base, target], [target, base]]) {
+      const result = diffEventModelProjects(previous, next);
+      for (const edge of result.project.edges.filter((edge) => edge.kind === "command-event")) {
+        const source = result.project.nodes.find((node) => node.id === edge.source)!;
+        const event = result.project.nodes.find((node) => node.id === edge.target)!;
+        expect(source.sourcePath).toBe(`event-model/features/${event.label.replace("Saved", "")}.slice.yaml`);
+      }
+    }
+  });
+
   it("marks target-only graph elements as added", () => {
     const base = loadEventModelProject(new URL("../../..", import.meta.url).pathname);
     const target = {

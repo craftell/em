@@ -2,14 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import fg from "fast-glob";
 import YAML from "yaml";
-import { commandId, edgeId, eventId, gwtId, queryId, screenId, sliceId, storyId } from "./id.js";
+import { buildGraph } from "./graph.js";
 import { findProjectRoot, readConfig } from "./config.js";
 import type {
   CommandModel,
   EventModelProject,
   EventRegistryEntry,
-  GraphEdge,
-  GraphNode,
   GwtScenario,
   QueryModel,
   ScreenModel,
@@ -179,168 +177,6 @@ function parseSlices(projectRoot: string, stories: StoryModel[], sliceGlob: stri
   return paths
     .filter((slicePath) => fs.existsSync(resolveProjectPath(projectRoot, slicePath)))
     .map((slicePath) => parseSliceText(slicePath, fs.readFileSync(resolveProjectPath(projectRoot, slicePath), "utf8"), storyBySlice));
-}
-
-function buildGraph(project: Omit<EventModelProject, "nodes" | "edges">): Pick<EventModelProject, "nodes" | "edges"> {
-  const nodes: GraphNode[] = [];
-  const edges: GraphEdge[] = [];
-  const eventNodeIds = new Map<string, string>();
-  const storyNodeIds = new Map<string, string>();
-
-  for (const story of project.stories) {
-    const id = storyId(story.path);
-    storyNodeIds.set(story.name, id);
-    nodes.push({
-      id,
-      type: "story",
-      label: story.name,
-      sourcePath: story.path,
-      description: story.description
-    });
-  }
-
-  for (const event of project.events) {
-    const id = eventId(event.name);
-    eventNodeIds.set(event.name, id);
-    nodes.push({
-      id,
-      type: "event",
-      label: event.name,
-      sourceName: event.name,
-      sourcePath: event.sourcePath,
-      fields: event.fields,
-      description: event.description
-    });
-  }
-
-  for (const slice of project.slices) {
-    const currentSliceId = sliceId(slice.path);
-    const currentScreenId = screenId(slice.path);
-    const screenType = slice.screen.type === "system" ? "processor" : "screen";
-
-    nodes.push({
-      id: currentSliceId,
-      type: "slice",
-      label: slice.title,
-      storyName: slice.storyName,
-      sliceTitle: slice.title,
-      sourcePath: slice.path,
-      raw: slice.raw
-    });
-
-    if (slice.storyName) {
-      const currentStoryId = storyNodeIds.get(slice.storyName) ?? storyId(slice.storyName);
-      edges.push({
-        id: edgeId("story-slice", currentStoryId, currentSliceId),
-        kind: "story-slice",
-        source: currentStoryId,
-        target: currentSliceId
-      });
-    }
-
-    nodes.push({
-      id: currentScreenId,
-      type: screenType,
-      label: slice.screen.name ?? (slice.screen.type === "system" ? "Processor" : "Screen"),
-      storyName: slice.storyName,
-      sliceTitle: slice.title,
-      sourcePath: slice.path,
-      actors: slice.screen.actors,
-      screenType: slice.screen.type,
-      raw: slice.raw
-    });
-    edges.push({
-      id: edgeId("slice-screen", currentSliceId, currentScreenId),
-      kind: "slice-screen",
-      source: currentSliceId,
-      target: currentScreenId
-    });
-
-    for (const query of slice.queries) {
-      const currentQueryId = queryId(query.name);
-      nodes.push({
-        id: currentQueryId,
-        type: "query",
-        label: query.name,
-        storyName: slice.storyName,
-        sliceTitle: slice.title,
-        sourceName: query.name,
-        sourcePath: slice.path,
-        fields: query.fields,
-        raw: slice.raw
-      });
-      if (slice.screen.reads.includes(query.name)) {
-        edges.push({
-          id: edgeId("query-screen", currentQueryId, currentScreenId),
-          kind: "query-screen",
-          source: currentQueryId,
-          target: currentScreenId
-        });
-      }
-      for (const eventName of query.fromEvents) {
-        const currentEventId = eventNodeIds.get(eventName) ?? eventId(eventName);
-        edges.push({
-          id: edgeId("event-query", currentEventId, currentQueryId),
-          kind: "event-query",
-          source: currentEventId,
-          target: currentQueryId,
-          label: eventName
-        });
-      }
-    }
-
-    for (const command of slice.commands) {
-      const currentCommandId = commandId(command.name);
-      nodes.push({
-        id: currentCommandId,
-        type: "command",
-        label: command.name,
-        storyName: slice.storyName,
-        sliceTitle: slice.title,
-        sourceName: command.name,
-        sourcePath: slice.path,
-        fields: command.fields,
-        raw: slice.raw
-      });
-      if (slice.screen.executes.includes(command.name)) {
-        edges.push({
-          id: edgeId("screen-command", currentScreenId, currentCommandId),
-          kind: "screen-command",
-          source: currentScreenId,
-          target: currentCommandId
-        });
-      }
-      for (const eventName of command.produces) {
-        const currentEventId = eventNodeIds.get(eventName) ?? eventId(eventName);
-        edges.push({
-          id: edgeId("command-event", currentCommandId, currentEventId),
-          kind: "command-event",
-          source: currentCommandId,
-          target: currentEventId,
-          label: eventName
-        });
-      }
-    }
-
-    slice.gwt.forEach((scenario, index) => {
-      nodes.push({
-        id: gwtId(slice.path, index, scenario.name),
-        type: "gwt",
-        label: scenario.name ?? `Case ${index + 1}`,
-        storyName: slice.storyName,
-        sliceTitle: slice.title,
-        sourceName: scenario.name,
-        sourcePath: slice.path,
-        description: scenario.description,
-        given: scenario.given,
-        when: scenario.when,
-        then: scenario.then,
-        raw: slice.raw
-      });
-    });
-  }
-
-  return { nodes, edges };
 }
 
 export function loadEventModelProject(startDir: string): EventModelProject {
