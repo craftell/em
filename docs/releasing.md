@@ -20,7 +20,15 @@ The release script:
 4. Runs `pnpm release:dry`.
 5. Commits the version bump.
 6. Creates an `emviz-vX.Y.Z` tag.
-7. Pushes `main` and the release tag.
+7. Prints the command to push `main` and the release tag. It does not push automatically.
+
+Run the printed command manually, for example:
+
+```sh
+git push --atomic origin main emviz-vX.Y.Z
+```
+
+Pushing the tag triggers npm staged publishing. A GitHub Release is optional and does not approve npm publication.
 
 ## Approve staged package
 

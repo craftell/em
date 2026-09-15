@@ -1,0 +1,5 @@
+# fdsx runtime directories
+runs/
+tasks/
+checkpoints/
+locks/

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "check": "tsc -b --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:browser": "node --test tests/gwt.browser.mjs"
   },
   "dependencies": {
     "@emviz/parser": "workspace:*",
