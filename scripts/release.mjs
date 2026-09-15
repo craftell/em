@@ -37,6 +37,9 @@ if (!allowedBumps.has(bump)) {
 }
 
 assertCleanWorktree();
+if (read("git", ["branch", "--show-current"]) !== "main") {
+  throw new Error("Release requires the main branch.");
+}
 
 run("npm", ["version", bump, "--no-git-tag-version"], { cwd: cliDir });
 const nextVersion = JSON.parse(fs.readFileSync(cliPackagePath, "utf8")).version;
@@ -47,12 +50,11 @@ run("pnpm", ["release:dry"]);
 run("git", ["add", "packages/cli/package.json", "pnpm-lock.yaml"]);
 run("git", ["commit", "-m", `Release emviz ${nextVersion}`]);
 run("git", ["tag", tag]);
-run("git", ["push", "origin", "main"]);
-run("git", ["push", "origin", tag]);
 
 console.log("");
-console.log(`Release ${nextVersion} has been pushed and tagged as ${tag}.`);
-console.log("Next steps:");
-console.log("1. Wait for the GitHub Actions npm staging workflow to pass.");
-console.log("2. Approve the staged package on npm with `npm stage approve <stage-id>`.");
-console.log(`3. Verify with \`npm view emviz version\` and \`npx emviz@${nextVersion} --help\`.`);
+console.log(`Release ${nextVersion} has been committed and tagged locally as ${tag}.`);
+console.log("Next steps (run manually):");
+console.log(`1. git push --atomic origin main ${tag}`);
+console.log(`2. Publish a GitHub Release for ${tag}. This triggers npm publication.`);
+console.log("3. Wait for the GitHub Actions publish workflow to pass.");
+console.log(`4. Verify with \`npm view emviz version\` and \`npx emviz@${nextVersion} --help\`.`);

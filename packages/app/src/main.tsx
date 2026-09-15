@@ -602,7 +602,11 @@ function SourcePanel({
         }}>Clear filter</button>
       </div>
       <p role="status">{results.length ? `${results.length} of ${gwtList.length} scenarios` : "No scenarios match this name."}</p>
-      <div className="gwt-all-list">{results.map((scenario) => <button type="button" key={scenario.id} aria-current={selectedNode?.id === scenario.id ? "true" : undefined} onClick={() => onSelect(scenario.id)}>{scenario.label}{diff ? ` · ${diff.nodeStatus[scenario.id] ?? "unchanged"}` : ""}</button>)}</div>
+      <div className="gwt-all-list">{results.map((scenario) => <button type="button" key={scenario.id} aria-current={selectedNode?.id === scenario.id ? "true" : undefined} onClick={() => {
+        // Focus can scroll the list before the browser delivers its scroll event.
+        listScroll.current = listPanel.current?.scrollTop ?? listScroll.current;
+        onSelect(scenario.id);
+      }}>{scenario.label}{diff ? ` · ${diff.nodeStatus[scenario.id] ?? "unchanged"}` : ""}</button>)}</div>
     </aside>;
   }
 

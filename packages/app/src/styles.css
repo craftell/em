@@ -17,6 +17,46 @@ input {
   font: inherit;
 }
 
+/* Shared controls also cover panel actions without a dedicated class. */
+button {
+  appearance: none;
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+button:where(:hover:not(:disabled)) {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button[aria-pressed="true"] {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+}
+
 .app-shell {
   height: 100vh;
   overflow: hidden;
@@ -53,6 +93,7 @@ input {
 }
 
 .segmented button {
+  border-radius: 0;
   padding: 6px 8px;
   border: 0;
   border-right: 1px solid #d8dee8;
@@ -116,6 +157,7 @@ input {
 }
 
 .menu-popover button {
+  border-radius: 0;
   padding: 9px 11px;
   border: 0;
   background: #fff;
@@ -178,6 +220,7 @@ input {
 }
 
 .search-results button {
+  border-radius: 0;
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -910,8 +953,17 @@ pre {
 }
 
 .gwt-more button {
+  padding: 1px 6px;
+  border-color: transparent;
+  background: transparent;
+  color: #6d28d9;
   font-size: 11px;
-  cursor: pointer;
+}
+
+.gwt-summary button:hover,
+.gwt-more button:hover {
+  background: #ede9fe;
+  color: #5b21b6;
 }
 
 .gwt-panel {
@@ -953,6 +1005,7 @@ pre {
 }
 
 .gwt-all-list button {
+  border-color: #d8dee8;
   text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -961,8 +1014,20 @@ pre {
 
 .gwt-panel-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
+  margin-bottom: 12px;
+}
+
+.gwt-panel > button:first-child {
+  display: block;
+  margin: 0 0 12px auto;
+}
+
+.gwt-all-list button:hover {
+  border-color: #c4b5fd;
+  background: #f8f5ff;
 }
 
 .gwt-summary button:focus-visible,
@@ -1265,11 +1330,25 @@ pre {
   gap: 8px;
 }
 
+.gwt-filter label {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.gwt-filter button {
+  justify-self: end;
+}
+
 .gwt-filter input {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding: 8px;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  font-size: 13px;
 }
 
 /* Keep diff counts inside the fixed-height summary without moving the diagram. */
