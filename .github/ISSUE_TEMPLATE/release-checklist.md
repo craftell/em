@@ -9,10 +9,9 @@ assignees: ""
 ## Release Checklist
 
 - [ ] `pnpm release:patch`, `pnpm release:minor`, or `pnpm release:major` completed
-- [ ] npm trusted publisher and package policy permit direct publishing
-- [ ] Release commit and package contents reviewed
-- [ ] `main` and release tag pushed manually
-- [ ] GitHub Release published for the existing tag
-- [ ] GitHub Actions published the package
+- [ ] GitHub Actions staged the package
+- [ ] npm staged package reviewed with `npm stage view <stage-id>`
+- [ ] npm staged tarball inspected with `npm stage download <stage-id>`
+- [ ] npm staged package approved with `npm stage approve <stage-id>`
 - [ ] `npm view emviz version` returns expected version
 - [ ] `npx emviz --help` works

@@ -1,10 +1,59 @@
 # Releasing emviz
 
-Publishing a stable GitHub Release tagged `emviz-vX.Y.Z` triggers npm publication through GitHub Actions and trusted publishing, with provenance. Pushing a tag alone does not publish. Drafts and prereleases do not publish.
+`emviz` releases use npm trusted publishing, GitHub Actions, provenance, and npm staged publishing. CI can stage a package, but a maintainer must approve the staged package with npm 2FA before it becomes live.
 
-## One-time migration from staged publishing
+## Normal release
 
-Before publishing the first Release with this workflow, a maintainer must review the npm trusted publisher settings for `emviz`:
+Run one command from a clean `main` worktree:
+
+```sh
+pnpm release:patch
+```
+
+Use `pnpm release:minor` or `pnpm release:major` when appropriate.
+
+The release script:
+
+1. Checks that the git worktree is clean.
+2. Bumps `packages/cli/package.json`.
+3. Updates `pnpm-lock.yaml`.
+4. Runs `pnpm release:dry`.
+5. Commits the version bump.
+6. Creates an `emviz-vX.Y.Z` tag.
+7. Prints the command to push `main` and the release tag. It does not push automatically.
+
+Run the printed command manually, for example:
+
+```sh
+git push --atomic origin main emviz-vX.Y.Z
+```
+
+Pushing the tag triggers npm staged publishing. A GitHub Release is optional and does not approve npm publication.
+
+## Approve staged package
+
+After GitHub Actions completes, approve the staged package:
+
+```sh
+npm install -g npm@latest
+npm stage list emviz
+npm stage view <stage-id>
+npm stage download <stage-id>
+npm stage approve <stage-id>
+```
+
+`npm stage approve` requires human 2FA. OIDC trusted publishing cannot approve the staged package.
+
+Verify the live package:
+
+```sh
+npm view emviz version
+npx emviz --help
+```
+
+## GitHub and npm settings
+
+The npm trusted publishing configuration should be:
 
 ```text
 Provider: GitHub Actions
@@ -12,45 +61,72 @@ Repository owner: craftell
 Repository: em
 Workflow filename: publish-npm.yml
 Environment name: npm-publish
+Allowed actions: npm stage publish
 ```
 
-The old configuration allowed only `npm stage publish`. It must permit direct `npm publish` for this workflow. Confirm that the package's publishing policy also permits direct trusted publishing. Do not add an npm token or weaken account protections to work around a failure.
+The GitHub environment should be named:
 
-The GitHub environment remains `npm-publish`. Keep any required reviewers and restrict deployment tags to `emviz-v*`. If reviewers are required, their approval is still required before publication.
-
-## Normal release
-
-Commit all intended changes on `main`, then run:
-
-```sh
-pnpm release:patch
+```text
+npm-publish
 ```
 
-Use `pnpm release:minor` for new features or `pnpm release:major` for breaking changes.
+Recommended GitHub environment settings:
 
-The script checks for a clean `main`, bumps `packages/cli/package.json`, updates the lockfile, runs checks/tests/pack validation, commits the version, and creates a local `emviz-vX.Y.Z` tag. It does not push or publish.
-
-Review the commit and package, then run the command printed by the script in your terminal:
-
-```sh
-git push --atomic origin main emviz-vX.Y.Z
-```
-
-On GitHub, open Releases, draft a new release, select the existing tag, add release notes, and click **Publish release**. Do not mark it as a prerelease. This is the approval to publish the package to npm.
-
-Wait for **Publish npm package** to pass. Approve the GitHub environment if prompted. No npm staged approval is needed.
-
-Verify:
-
-```sh
-npm view emviz version
-npx emviz@X.Y.Z --help
-```
+1. Require trusted maintainers as reviewers.
+2. Restrict deployment tags to `emviz-v*`.
+3. Do not add npm tokens as secrets.
 
 ## Recovery
 
-- If tag and package versions differ, the workflow stops before publication. Fix the version and create a new release tag rather than moving a published tag.
-- If npm rejects the publishing permission, check the trusted publisher and package policy described above. Do not fall back to a token automatically.
-- If provenance validation fails, confirm that `packages/cli/package.json` points to `https://github.com/craftell/em`.
-- npm versions are immutable. If a published package is wrong, prepare a corrected patch version.
-- Publishing a GitHub Release does not guarantee npm publication succeeded. Check the Actions result and npm version.
+### Tag version does not match package version
+
+The publish workflow fails before staging if `emviz-vX.Y.Z` does not match `packages/cli/package.json`.
+
+Fix the package version, commit, and create a new tag. If the incorrect tag did not stage anything and you intentionally want to reuse it:
+
+```sh
+git tag -d emviz-vX.Y.Z
+git push origin :refs/tags/emviz-vX.Y.Z
+git tag emviz-vX.Y.Z
+git push origin emviz-vX.Y.Z
+```
+
+Prefer a new patch version when there is any doubt.
+
+### Staged publish fails provenance validation
+
+Check that `packages/cli/package.json` has:
+
+```json
+"repository": {
+  "type": "git",
+  "url": "https://github.com/craftell/em"
+}
+```
+
+The repository URL must match the GitHub repository in the provenance statement.
+
+### Staged package is wrong
+
+Reject it instead of approving:
+
+```sh
+npm stage reject <stage-id>
+```
+
+Then cut a new patch release.
+
+### Version already exists
+
+npm versions are immutable. Bump to the next patch version and release again.
+
+### Local manual publish
+
+Avoid local manual publish for normal releases. If an emergency local publish is required, do not use `--provenance` locally:
+
+```sh
+pnpm release:pack
+npm publish ./artifacts/emviz-X.Y.Z.tgz --access public
+```
+
+Provenance is generated by GitHub Actions, not by a local terminal.

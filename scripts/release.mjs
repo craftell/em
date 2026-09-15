@@ -55,6 +55,6 @@ console.log("");
 console.log(`Release ${nextVersion} has been committed and tagged locally as ${tag}.`);
 console.log("Next steps (run manually):");
 console.log(`1. git push --atomic origin main ${tag}`);
-console.log(`2. Publish a GitHub Release for ${tag}. This triggers npm publication.`);
-console.log("3. Wait for the GitHub Actions publish workflow to pass.");
+console.log("2. Wait for the GitHub Actions npm staging workflow to pass.");
+console.log("3. Review and approve the staged package with `npm stage view <stage-id>` and `npm stage approve <stage-id>`.");
 console.log(`4. Verify with \`npm view emviz version\` and \`npx emviz@${nextVersion} --help\`.`);
