@@ -6,6 +6,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { loadEventModelProjectFromFiles } from "@emviz/parser/browser";
 
 let server;
 let browser;
@@ -76,6 +77,64 @@ test("connections list only direct neighbor nodes, without field rows or GWT ref
     assert.equal(await panel.locator(".connection-button").count(), 0);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
+});
+
+test("real YAML keeps same-named nodes and their connections separate in live and exported views", async () => {
+  const names = Array.from({ length: 12 }, (_, index) => `Slice${index}`);
+  const paths = names.map((name) => `event-model/features/${name}.slice.yaml`);
+  const project = loadEventModelProjectFromFiles([
+    { path: "event-model/events.yaml", content: `events:\n${names.map((name) => `  ${name}Saved: {}`).join("\n")}` },
+    { path: "event-model/stories/main.yaml", content: `name: Main\nslices:\n${paths.map((path) => `  - ${path}`).join("\n")}` },
+    ...names.map((name, index) => ({ path: paths[index], content: `slice: Same title
+screen:
+  name: ${name} screen
+  reads: [Status]
+  executes: [Save]
+commands:
+  - name: Save
+    produces: [${name}Saved, ${name}Saved]
+queries:
+  - name: Status
+    from_events: [${name}Saved, ${name}Saved]
+gwt:
+  - name: Same scenario
+    given: [{type: event, name: ${name}Saved}]
+    when: [{type: command, name: Save}]
+    then: [{type: event, name: ${name}Saved}]
+  - name: Same scenario
+    given: []
+    when: []
+    then: []
+` }))
+  ]);
+  const live = await open(0, () => project);
+  const saved = await openSaved(await savedHtml(project));
+  try {
+    for (const page of [live.page, saved.page]) {
+      const panel = page.getByRole("complementary", { name: "Node details" });
+      for (const name of ["Slice1", "Slice11"]) {
+        const command = project.nodes.find((node) => node.type === "command" && node.sourcePath === `event-model/features/${name}.slice.yaml`);
+        await page.locator(`[data-id="${command.id}"]`).click({ force: true });
+        assert.deepEqual(await panel.locator(".connection-button").allTextContents(), [`${name} screen`, `${name}Saved`]);
+        await panel.getByRole("button", { name: `${name}Saved`, exact: true }).click();
+        assert.deepEqual(await panel.locator(".connection-button").allTextContents(), ["Save", "Status"]);
+        await panel.getByRole("button", { name: "Status", exact: true }).click();
+        assert.deepEqual(await panel.locator(".connection-button").allTextContents(), [`${name}Saved`, `${name} screen`]);
+        assert.ok((await panel.textContent()).includes(`event-model/features/${name}.slice.yaml`));
+        await panel.locator("summary").filter({ hasText: "Copy for LLM" }).click();
+        await panel.locator(".copy-action").filter({ hasText: "Reference plus incoming" }).click();
+        const context = await page.evaluate(() => window.copiedText);
+        assert.ok(context.includes(`Incoming:\n- ${name}Saved -> Status\n\nOutgoing:\n- Status -> ${name} screen`));
+        const scenario = project.nodes.find((node) => node.type === "gwt" && node.sourcePath === `event-model/features/${name}.slice.yaml`);
+        await page.locator(`[data-id="${scenario.id}"] .gwt-summary button`).first().click({ force: true });
+        assert.equal(await panel.locator(".connection-button").count(), 0);
+      }
+      const ids = await page.locator(".react-flow__node").evaluateAll((nodes) => nodes.map((node) => node.dataset.id));
+      assert.equal(new Set(ids).size, ids.length);
+    }
+    assert.deepEqual(live.errors, []);
+    assert.deepEqual(saved.requests, []);
+  } finally { await live.page.close(); await saved.page.close(); }
 });
 
 async function geometry(page) {

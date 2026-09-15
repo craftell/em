@@ -187,6 +187,8 @@ Example:
 
 Visualizer IDs live in `graph.json`, not in the event-model YAML.
 
+Graph construction is shared by disk and browser loading in `packages/parser/src/graph.ts`. A readable ID is retained when unambiguous. When IDs collide, an encoded exact source identity is appended: file path, name, and occurrence for slice-local nodes; exact name for global events. Adding or removing a collision can change the affected handles, so diff matching uses source identity rather than generated IDs. Names that differ only in punctuation or case must not be merged. Repeated event references produce one edge per directed connection. GWT references never produce graph edges.
+
 Reference format:
 
 ```text

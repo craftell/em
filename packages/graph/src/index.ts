@@ -297,12 +297,12 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
   const merged = cloneProject(target);
   const existingNodeIds = new Set(merged.nodes.map((node) => node.id));
   const existingEdgeIds = new Set(merged.edges.map((edge) => edge.id));
-  // GWT selectors can repeat across slices and within one slice. Keep their
-  // definition-order occurrence separate without changing sidecar selectors.
+  // Only events are global. Slice-local names and titles can repeat, so keep
+  // their source and occurrence separate when matching nodes and edge endpoints.
   const diffKeys = (project: EventModelProject) => {
     const occurrences = new Map<string, number>();
     return new Map(project.nodes.map((node) => {
-      if (node.type !== "gwt") return [node.id, nodeKey(node)];
+      if (node.type === "event") return [node.id, nodeKey(node)];
       const key = stableJson({ selector: nodeKey(node), sourcePath: node.sourcePath });
       const occurrence = occurrences.get(key) ?? 0;
       occurrences.set(key, occurrence + 1);
