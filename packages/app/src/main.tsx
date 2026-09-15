@@ -459,35 +459,6 @@ function sidecarFindings(project: EventModelProject): ValidationFinding[] {
   });
 }
 
-function provenanceRows({
-  edge,
-  flow,
-  selectedNode,
-  peer
-}: {
-  edge: EventModelProject["edges"][number];
-  flow?: FieldFlow;
-  selectedNode: ProjectNode;
-  peer?: ProjectNode;
-}): { fieldName: string; source: string; kind: "field" | "event" }[] {
-  if (!flow || !peer) return [];
-
-  const incoming = edge.target === selectedNode.id;
-  const source = incoming ? peer : selectedNode;
-  return [
-    ...flow.sharedFieldNames.map((fieldName) => ({
-      fieldName,
-      source: `${source.label}.${fieldName}`,
-      kind: "field" as const
-    })),
-    ...flow.derivedFieldNames.map((fieldName) => ({
-      fieldName,
-      source: source.type === "event" ? `${source.label} occurred` : source.label,
-      kind: "event" as const
-    }))
-  ];
-}
-
 function ImportPanel({
   onImport,
   error
@@ -531,7 +502,6 @@ function SourcePanel({
   selectedNode: currentNode,
   diff,
   findings,
-  fieldFlows,
   selectedFieldName,
   onSelect,
   onSelectField,
@@ -547,7 +517,6 @@ function SourcePanel({
   selectedNode?: ProjectNode;
   diff?: GraphDiff;
   findings: ValidationFinding[];
-  fieldFlows: Map<string, FieldFlow>;
   selectedFieldName?: string;
   onSelect: (nodeId: string) => void;
   onSelectField: (fieldName: string) => void;
@@ -619,10 +588,15 @@ function SourcePanel({
     );
   }
 
-  const incoming = project.edges.filter((edge) => edge.target === selectedNode.id && isBehaviorConnection(edge.kind));
-  const outgoing = project.edges.filter((edge) => edge.source === selectedNode.id && isBehaviorConnection(edge.kind));
-  const fieldNames = parseFieldNames(selectedNode.fields);
   const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
+  const connections = project.edges.filter((edge) => {
+    const source = nodeById.get(edge.source);
+    const target = nodeById.get(edge.target);
+    return isBehaviorConnection(edge.kind) && source && target && source.type !== "gwt" && target.type !== "gwt";
+  });
+  const incoming = connections.filter((edge) => edge.target === selectedNode.id);
+  const outgoing = connections.filter((edge) => edge.source === selectedNode.id);
+  const fieldNames = parseFieldNames(selectedNode.fields);
   const modelId = project.graphSidecar?.model?.id ?? "event_model";
   const reference = `em://${modelId}/${selectedNode.id}`;
   const yaml = selectedNode.raw ?? selectedNode.fields ?? selectedNode.description ?? selectedNode.label;
@@ -708,65 +682,35 @@ function SourcePanel({
       <h3>Connections</h3>
       <div className="connection-list">
         <strong>Incoming</strong>
-        {incoming.length === 0 ? <p className="muted">None</p> : incoming.map((edge) => {
-          const peer = nodeById.get(edge.source);
-          const rows = provenanceRows({ edge, flow: fieldFlows.get(edge.id), selectedNode, peer });
-          return (
-            <button
-              type="button"
-              className="connection-button"
-              key={edge.id}
-              onClick={() => onSelect(edge.source)}
-              onMouseEnter={() => onPreviewConnection(edge.id)}
-              onMouseLeave={onClearPreview}
-              onFocus={() => onPreviewConnection(edge.id)}
-              onBlur={onClearPreview}
-            >
-              <span>{peer?.label ?? edge.source}</span>
-              {rows.length > 0 ? (
-                <span className="provenance-rows">
-                  {rows.map((row) => (
-                    <span className={selectedFieldName === row.fieldName ? "selected" : ""} key={`${edge.id}-${row.fieldName}-${row.source}`}>
-                      <b>{row.fieldName}</b>
-                      <span aria-hidden="true">←</span>
-                      <em>{row.source}</em>
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+        {incoming.length === 0 ? <p className="muted">None</p> : incoming.map((edge) => (
+          <button
+            type="button"
+            className="connection-button"
+            key={edge.id}
+            onClick={() => onSelect(edge.source)}
+            onMouseEnter={() => onPreviewConnection(edge.id)}
+            onMouseLeave={onClearPreview}
+            onFocus={() => onPreviewConnection(edge.id)}
+            onBlur={onClearPreview}
+          >
+            <span>{nodeById.get(edge.source)?.label ?? edge.source}</span>
+          </button>
+        ))}
         <strong>Outgoing</strong>
-        {outgoing.length === 0 ? <p className="muted">None</p> : outgoing.map((edge) => {
-          const peer = nodeById.get(edge.target);
-          const rows = provenanceRows({ edge, flow: fieldFlows.get(edge.id), selectedNode, peer });
-          return (
-            <button
-              type="button"
-              className="connection-button"
-              key={edge.id}
-              onClick={() => onSelect(edge.target)}
-              onMouseEnter={() => onPreviewConnection(edge.id)}
-              onMouseLeave={onClearPreview}
-              onFocus={() => onPreviewConnection(edge.id)}
-              onBlur={onClearPreview}
-            >
-              <span>{peer?.label ?? edge.target}</span>
-              {rows.length > 0 ? (
-                <span className="provenance-rows">
-                  {rows.map((row) => (
-                    <span className={selectedFieldName === row.fieldName ? "selected" : ""} key={`${edge.id}-${row.fieldName}-${row.source}`}>
-                      <b>{row.fieldName}</b>
-                      <span aria-hidden="true">←</span>
-                      <em>{row.source}</em>
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
+        {outgoing.length === 0 ? <p className="muted">None</p> : outgoing.map((edge) => (
+          <button
+            type="button"
+            className="connection-button"
+            key={edge.id}
+            onClick={() => onSelect(edge.target)}
+            onMouseEnter={() => onPreviewConnection(edge.id)}
+            onMouseLeave={onClearPreview}
+            onFocus={() => onPreviewConnection(edge.id)}
+            onBlur={onClearPreview}
+          >
+            <span>{nodeById.get(edge.target)?.label ?? edge.target}</span>
+          </button>
+        ))}
       </div>
       {selectedNode.type === "command" || selectedNode.type === "event" || selectedNode.type === "query" ? (
         <>
@@ -1182,7 +1126,6 @@ function FlowWorkspace() {
         project={project}
         selectedNode={selectedNode}
         findings={selectedFindings}
-        fieldFlows={fieldFlows}
         selectedFieldName={selectedFieldName}
         onSelect={focusNode}
         onSelectField={setSelectedFieldName}

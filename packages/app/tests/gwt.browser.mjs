@@ -56,6 +56,28 @@ async function open(count = 100, transform = (project) => project, diff) {
   return { page, errors };
 }
 
+test("connections list only direct neighbor nodes, without field rows or GWT references", async () => {
+  const { page, errors } = await open(3, () => {
+    const project = modelWithConnection(3);
+    project.nodes.find((node) => node.id === "saved-event").fields = "id: string";
+    project.nodes.push({ id: "query", type: "query", label: "Saved query", sourcePath: "slice-0.yaml", sliceTitle: "Same slice title", fields: "id: string" });
+    project.edges.push({ id: "read", source: "saved-event", target: "query", kind: "event-query" });
+    return project;
+  });
+  try {
+    const panel = page.getByRole("complementary", { name: "Node details" });
+    await page.locator('[data-id="command-0"]').click();
+    assert.deepEqual(await panel.locator(".connection-button").allTextContents(), ["Saved event"]);
+    await panel.getByRole("button", { name: "Saved event", exact: true }).click();
+    assert.deepEqual(await panel.locator(".connection-button").allTextContents(), ["Command 0", "Saved query"]);
+    await panel.getByRole("button", { name: "Saved query", exact: true }).click();
+    assert.deepEqual(await panel.locator(".connection-button").allTextContents(), ["Saved event"]);
+    await page.locator('[data-id="gwt-0-0"] .gwt-summary button').first().click();
+    assert.equal(await panel.locator(".connection-button").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
 async function geometry(page) {
   return page.evaluate(() => ({
     viewport: document.querySelector(".react-flow__viewport").getAttribute("style"),
