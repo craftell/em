@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { loadEventModelProject } from "@emviz/parser";
 import { diffEventModelProjects, readGraphSidecar, writeGraphSidecar, type GraphDiff } from "@emviz/graph";
 import { validateEventModelProject } from "@emviz/validator";
-import { FeedbackSession, handleFeedback, trustedRequest } from "./feedback.js";
+import { FeedbackSession, handleFeedback, trustedRequest, readSnapshot } from "./feedback.js";
 import { openProject, runAgentCommand } from "./agent-cli.js";
 
 const args = process.argv.slice(2);
@@ -28,14 +28,6 @@ function sendText(res: http.ServerResponse, statusCode: number, body: string): v
   res.statusCode = statusCode;
   res.setHeader("content-type", "text/plain; charset=utf-8");
   res.end(body);
-}
-
-function loadApiModel(targetDir: string): unknown {
-  const project = loadEventModelProject(targetDir);
-  return {
-    ...project,
-    graphSidecar: readGraphSidecar(project.root)
-  };
 }
 
 type DiffSource = {
@@ -167,14 +159,6 @@ async function runSync(targetDir: string): Promise<void> {
   printSyncResult(result);
 }
 
-function syncMissingGraphSidecar(targetDir: string): void {
-  const project = loadEventModelProject(targetDir);
-  if (readGraphSidecar(project.root)) return;
-
-  console.log("Missing .event-modeling/graph.json; running initial sync...");
-  printSyncResult(writeGraphSidecar(project));
-}
-
 const contentTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -243,7 +227,13 @@ function listenWithFallback(server: http.Server, port: number): Promise<number> 
 }
 
 async function runServer(targetDir?: string, diffState?: DiffServerState): Promise<void> {
-  if (targetDir) syncMissingGraphSidecar(targetDir);
+  if (targetDir) {
+    const initial = readSnapshot(targetDir);
+    if (!initial.graphSidecar) {
+      console.log("Missing .event-modeling/graph.json; running initial sync...");
+      printSyncResult(writeGraphSidecar(initial.project));
+    }
+  }
 
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "app");
   const feedback = targetDir ? new FeedbackSession(targetDir) : undefined;
@@ -287,7 +277,9 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
 
     if (targetDir && url.pathname === "/api/model") {
       try {
-        sendJson(res, loadApiModel(targetDir));
+        const snapshot = feedback!.snapshot("current");
+        if (snapshot.stale) res.statusCode = 422;
+        sendJson(res, snapshot.project);
       } catch (error) {
         res.statusCode = 500;
         sendJson(res, { error: error instanceof Error ? error.message : String(error) });
@@ -297,8 +289,9 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
 
     if (targetDir && url.pathname === "/api/validation") {
       try {
-        const project = loadEventModelProject(targetDir);
-        sendJson(res, validateEventModelProject(project));
+        const snapshot = feedback!.snapshot("current");
+        if (snapshot.stale) res.statusCode = 422;
+        sendJson(res, snapshot.validation);
       } catch (error) {
         res.statusCode = 500;
         sendJson(res, { error: error instanceof Error ? error.message : String(error) });

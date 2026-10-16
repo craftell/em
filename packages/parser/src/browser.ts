@@ -153,17 +153,17 @@ export function loadEventModelProjectFromFiles(files: InMemoryEventModelFile[], 
   const eventsFile = configRaw?.paths?.events_file ?? `${eventModelDir}/events.yaml`;
   const storiesDir = configRaw?.paths?.stories_dir ?? `${eventModelDir}/stories`;
   const eventsContent = normalizedFiles.get(eventsFile);
-  if (!eventsContent) throw new Error(`Missing events file: ${eventsFile}`);
+  if (eventsContent === undefined) throw new Error(`Missing events file: ${eventsFile}`);
 
   const events = parseEventsText(eventsFile, eventsContent);
   const stories = [...normalizedFiles.entries()]
-    .filter(([filePath]) => filePath.startsWith(`${storiesDir}/`) && filePath.endsWith(".yaml"))
+    .filter(([filePath]) => filePath.split("/").slice(0, -1).join("/") === storiesDir && filePath.endsWith(".yaml"))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([filePath, content]) => parseStoryText(filePath, content));
   const storyBySlice = new Map<string, string>();
   for (const story of stories) for (const slicePath of story.slices) storyBySlice.set(normalizeRelativePath(slicePath), story.name);
   const storySlicePaths = stories.flatMap((story) => story.slices.map(normalizeRelativePath));
-  const discoveredSlicePaths = [...normalizedFiles.keys()].filter((filePath) => filePath.startsWith(`${featuresDir}/`) && filePath.endsWith(sliceExtension));
+  const discoveredSlicePaths = [...normalizedFiles.keys()].filter((filePath) => (featuresDir === "" || filePath.startsWith(`${featuresDir}/`)) && filePath.endsWith(sliceExtension));
   const slicePaths = [...new Set([...storySlicePaths, ...discoveredSlicePaths])].sort();
   const slices = slicePaths.filter((filePath) => normalizedFiles.has(filePath)).map((filePath) => parseSliceText(filePath, normalizedFiles.get(filePath) ?? "", storyBySlice));
   const projectWithoutGraph = {

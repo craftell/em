@@ -39,7 +39,11 @@ export function readConfig(projectRoot: string): ModelConfig {
     throw new Error(`Missing .event-modeling/config.yaml at ${projectRoot}`);
   }
 
-  const raw = YAML.parse(fs.readFileSync(configPath, "utf8")) as RawConfig | null;
+  return parseConfig(fs.readFileSync(configPath, "utf8"));
+}
+
+export function parseConfig(content: string): ModelConfig {
+  const raw = YAML.parse(content) as RawConfig | null;
   const eventModelDir = raw?.paths?.event_model_dir ?? "event-model";
   const featuresDir = raw?.paths?.features_dir ?? "src/features";
   const sliceExtension = raw?.paths?.slice_extension ?? ".slice.yaml";

@@ -5,7 +5,7 @@ import http from "node:http";
 import { execFileSync } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { FeedbackSession, handleFeedback, trustedRequest } from "./feedback.js";
+import { FeedbackSession, handleFeedback, trustedRequest, readSnapshot } from "./feedback.js";
 import { parseConnection } from "./agent-cli.js";
 
 const roots: string[] = [];
@@ -164,5 +164,73 @@ describe("HTTP boundary", () => {
     expect(() => parseConnection(["--url", "https://example.com/", "--token", "token"])).toThrow();
     expect(() => parseConnection(["--url", "http://localhost.evil/", "--token", "token"])).toThrow();
     expect(parseConnection(["--url", "http://127.0.0.1:5173/", "--token", "token"]).url.hostname).toBe("127.0.0.1");
+  });
+});
+
+describe("snapshot source boundary", () => {
+  it("rejects out-of-root story paths and source symlinks before parsing their contents", () => {
+    const root = project();
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "emviz-outside-test-"));
+    roots.push(outside);
+    fs.writeFileSync(path.join(outside, "private.yaml"), "secret: [invalid");
+    fs.mkdirSync(path.join(root, "event-model/stories"));
+    fs.writeFileSync(path.join(root, "event-model/stories/unsafe.yaml"), "name: Unsafe\nslices:\n  - " + path.relative(root, path.join(outside, "private.yaml")) + "\n");
+    expect(() => readSnapshot(root)).toThrow("inside the project");
+    fs.rmSync(path.join(root, "event-model/stories/unsafe.yaml"));
+    fs.symlinkSync(path.join(outside, "private.yaml"), path.join(root, "event-model/features/unsafe.slice.yaml"));
+    expect(() => readSnapshot(root)).toThrow("inside the project");
+  });
+
+  it("retains frozen validation and last-good data when live sidecar or files change", async () => {
+    const root = project();
+    const session = new FeedbackSession(root);
+    const submitted = session.submit(request(session));
+    await session.poll("agent");
+    session.reply({ id: submitted.id, agent: "agent", reply: "No edit needed." });
+    const turn = session.snapshot("turn");
+    fs.writeFileSync(path.join(root, ".event-modeling/graph.json"), "{bad json");
+    const stale = session.snapshot("current");
+    expect(stale.stale).toBe(true);
+    expect(stale.validation).toEqual(turn.validation);
+    expect(session.snapshot("turn").validation).toEqual(turn.validation);
+    fs.rmSync(path.join(root, ".event-modeling/graph.json"));
+    fs.rmSync(path.join(root, slice));
+    expect(session.snapshot("turn").project).toEqual(turn.project);
+    expect(session.snapshot("turn").validation).toEqual(turn.validation);
+  });
+
+  it("keeps normalized custom paths and explicit story slices in a nested Git baseline", async () => {
+    const repo = project();
+    fs.rmSync(path.join(repo, ".event-modeling"), { recursive: true });
+    fs.rmSync(path.join(repo, "event-model"), { recursive: true });
+    const root = path.join(repo, "nested");
+    fs.mkdirSync(path.join(root, ".event-modeling"), { recursive: true });
+    fs.mkdirSync(path.join(root, "models/stories"), { recursive: true });
+    fs.mkdirSync(path.join(root, "workflows"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".event-modeling/config.yaml"), "paths:\n  events_file: ./models/registry.yaml\n  stories_dir: ./models/stories\n  features_dir: ./models/features\n");
+    fs.writeFileSync(path.join(root, "models/registry.yaml"), "events:\n  Saved:\n    fields: 'id: string'\n");
+    fs.writeFileSync(path.join(root, "models/stories/main.yaml"), "name: Main\nslices:\n  - workflows/save.yaml\n");
+    fs.writeFileSync(path.join(root, "workflows/save.yaml"), "slice: Save\ncommands:\n  - name: Save\n    produces: [Saved]\n");
+    const git = (args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
+    git(["init"]);
+    git(["add", "."]);
+    git(["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "Nested"]);
+    const session = new FeedbackSession(root);
+    const snapshot = session.snapshot("session");
+    expect(snapshot.baseline.kind).toBe("git");
+    expect(snapshot.diff!.summary.nodes.added).toBe(0);
+    expect(snapshot.diff!.summary.nodes.removed).toBe(0);
+    const event = snapshot.project.nodes.find((node) => node.type === "event")!;
+    session.submit({ clientRequestId: "event", revision: snapshot.revision, nodeId: event.id, message: "Inspect" });
+    const result = await session.poll("agent");
+    if (!("request" in result) || !result.request) throw new Error("Missing request");
+    expect(result.request.yaml).toContain("events:");
+    expect(result.request.sourcePath).toBe("models/registry.yaml");
+  });
+
+  it("bounds file bytes before YAML parsing", () => {
+    const root = project();
+    fs.writeFileSync(path.join(root, slice), "x".repeat(8 * 1024 * 1024 + 1));
+    expect(() => readSnapshot(root)).toThrow("8 MiB");
   });
 });

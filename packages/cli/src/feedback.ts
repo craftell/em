@@ -1,11 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { loadEventModelProject, findProjectRoot, readConfig, type EventModelProject } from "@emviz/parser";
-import { diffEventModelProjects, readGraphSidecar } from "@emviz/graph";
+import { loadEventModelProjectFromFiles, findProjectRoot, parseConfig, type EventModelProject, type ModelConfig } from "@emviz/parser";
+import { diffEventModelProjects, type GraphSidecar } from "@emviz/graph";
 import { validateEventModelProject } from "@emviz/validator";
 
 export class FeedbackError extends Error {
@@ -16,7 +15,8 @@ type Snapshot = {
   project: EventModelProject;
   revision: string;
   files: Map<string, string>;
-  graphSidecar: ReturnType<typeof readGraphSidecar>;
+  graphSidecar: GraphSidecar | undefined;
+  validation: ReturnType<typeof validateEventModelProject>;
 };
 
 export type FeedbackRequest = {
@@ -45,80 +45,138 @@ type RequestState =
   | { status: "completed"; context: RequestContext; agentId: string; before: Snapshot; after: Snapshot }
   | { status: "stopped"; context?: RequestContext };
 
-function withinRoot(root: string, file: string): string {
-  const resolved = fs.realpathSync(path.resolve(root, file));
+function sourceKey(root: string, source: string): string {
+  const relative = path.relative(root, path.resolve(root, source));
+  if (path.isAbsolute(source) || relative.startsWith("..") || path.isAbsolute(relative)) throw new FeedbackError(400, "Model sources must stay inside the project directory.");
+  return relative.split(path.sep).join("/");
+}
+
+function withinRoot(root: string, source: string): string {
+  const key = sourceKey(root, source);
+  const resolved = fs.realpathSync(path.resolve(root, key));
   const relative = path.relative(fs.realpathSync(root), resolved);
   if (relative.startsWith("..") || path.isAbsolute(relative)) throw new FeedbackError(400, "Model sources must stay inside the project directory.");
   return resolved;
 }
 
-function validateConfiguredPaths(root: string): void {
-  const config = readConfig(root);
-  for (const value of [config.paths.eventModelDir, config.paths.featuresDir, config.paths.eventsFile, config.paths.storiesDir]) {
-    const relative = path.relative(root, path.resolve(root, value));
-    if (path.isAbsolute(value) || relative.startsWith("..") || path.isAbsolute(relative)) throw new FeedbackError(400, "Model configuration paths must stay inside the project directory.");
-    if (fs.existsSync(path.resolve(root, value))) withinRoot(root, value);
-  }
+function normalizedConfig(root: string, text: string): ModelConfig {
+  const config = parseConfig(text);
+  return { ...config, paths: {
+    ...config.paths,
+    eventModelDir: sourceKey(root, config.paths.eventModelDir),
+    featuresDir: sourceKey(root, config.paths.featuresDir),
+    eventsFile: sourceKey(root, config.paths.eventsFile),
+    storiesDir: sourceKey(root, config.paths.storiesDir)
+  } };
+}
+
+function parseFiles(root: string, files: Map<string, string>, config: ModelConfig): EventModelProject {
+  const paths = config.paths;
+  const normalized = JSON.stringify({ language: config.language, paths: {
+    event_model_dir: paths.eventModelDir, features_dir: paths.featuresDir, events_file: paths.eventsFile,
+    stories_dir: paths.storiesDir, slice_extension: paths.sliceExtension
+  } });
+  return loadEventModelProjectFromFiles([...files].map(([name, content]) => ({
+    path: name, content: name === ".event-modeling/config.yaml" ? normalized : content
+  })), { root });
 }
 
 export function readSnapshot(target: string): Snapshot {
-  validateConfiguredPaths(findProjectRoot(target));
-  const project = loadEventModelProject(target);
-  const sources = new Set([
-    ".event-modeling/config.yaml", project.config.paths.eventsFile,
-    ...project.stories.map((story) => story.path), ...project.slices.map((slice) => slice.path)
-  ]);
-  if (fs.existsSync(path.join(project.root, ".event-modeling/graph.json"))) sources.add(".event-modeling/graph.json");
-  if (sources.size > 512) throw new FeedbackError(413, "Feedback supports at most 512 model files.");
-  let bytes = 0;
+  const root = findProjectRoot(target);
   const files = new Map<string, string>();
-  const hash = createHash("sha256");
-  for (const source of [...sources].sort()) {
-    const file = withinRoot(project.root, source);
-    if (fs.statSync(file).size + bytes > 8 * 1024 * 1024) throw new FeedbackError(413, "Feedback supports at most 8 MiB of model files.");
+  let bytes = 0;
+  const read = (source: string) => {
+    const key = sourceKey(root, source);
+    if (files.has(key)) return;
+    const file = withinRoot(root, key);
+    if (files.size >= 512 || fs.statSync(file).size + bytes > 8 * 1024 * 1024) throw new FeedbackError(413, "Feedback supports at most 512 files and 8 MiB.");
     const content = fs.readFileSync(file, "utf8");
     bytes += Buffer.byteLength(content);
-    files.set(source, content);
+    if (bytes > 8 * 1024 * 1024) throw new FeedbackError(413, "Model grew beyond 8 MiB while reading.");
+    files.set(key, content);
+  };
+  read(".event-modeling/config.yaml");
+  const config = normalizedConfig(root, files.get(".event-modeling/config.yaml")!);
+  read(config.paths.eventsFile);
+  let visitedEntries = 0;
+  const walk = (directory: string, recursive: boolean, extension: string, visited = new Set<string>()) => {
+    const key = sourceKey(root, directory);
+    if (!fs.existsSync(path.resolve(root, key))) return;
+    const resolved = withinRoot(root, key);
+    if (visited.has(resolved)) return;
+    visited.add(resolved);
+    for (const entry of fs.readdirSync(resolved, { withFileTypes: true })) {
+      if (++visitedEntries > 10000) throw new FeedbackError(413, "Model discovery exceeds 10000 directory entries.");
+      if (entry.name.startsWith(".") || ["node_modules", "dist", "build"].includes(entry.name)) continue;
+      const relative = path.posix.join(key, entry.name);
+      const actual = withinRoot(root, relative);
+      const stat = fs.statSync(actual);
+      if (stat.isDirectory() && recursive) walk(relative, true, extension, visited);
+      else if (stat.isFile() && entry.name.endsWith(extension)) read(relative);
+    }
+  };
+  walk(config.paths.storiesDir, false, ".yaml");
+  walk(config.paths.featuresDir, true, config.paths.sliceExtension);
+  const preliminary = parseFiles(root, files, config);
+  for (const source of preliminary.stories.flatMap((story) => story.slices)) {
+    const key = sourceKey(root, source);
+    if (fs.existsSync(path.resolve(root, key))) read(key);
+  }
+  if (fs.existsSync(path.join(root, ".event-modeling/graph.json"))) read(".event-modeling/graph.json");
+  const project = parseFiles(root, files, config);
+  const sidecarText = files.get(".event-modeling/graph.json");
+  const graphSidecar = sidecarText === undefined ? undefined : JSON.parse(sidecarText) as GraphSidecar;
+  if (graphSidecar !== undefined && (
+    !graphSidecar || typeof graphSidecar !== "object" ||
+    typeof graphSidecar.model?.id !== "string" ||
+    !graphSidecar.nodes || typeof graphSidecar.nodes !== "object" || Array.isArray(graphSidecar.nodes) ||
+    Object.values(graphSidecar.nodes).some((node) => !node || typeof node.type !== "string" || !node.selector || typeof node.selector !== "object" || Object.values(node.selector).some((value) => typeof value !== "string"))
+  )) throw new FeedbackError(422, "Invalid .event-modeling/graph.json.");
+  const validation = validateEventModelProject(project, { sourcePaths: new Set(files.keys()), sidecar: graphSidecar });
+  const hash = createHash("sha256");
+  for (const [source, content] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
+    const actual = withinRoot(root, source);
+    if (fs.statSync(actual).size > 8 * 1024 * 1024 || fs.readFileSync(actual, "utf8") !== content) throw new FeedbackError(409, "Model changed while reading. Try again.");
     hash.update(JSON.stringify([source, content]));
   }
-  if (JSON.stringify(loadEventModelProject(target)) !== JSON.stringify(project)) throw new FeedbackError(409, "Model changed while reading. Try again.");
-  return { project, revision: hash.digest("hex"), files, graphSidecar: readGraphSidecar(project.root) };
+  return { project, revision: hash.digest("hex"), files, graphSidecar, validation };
 }
 
 function gitBaseline(snapshot: Snapshot): { project: EventModelProject; label: string; kind: "git" | "startup" } {
   const root = snapshot.project.root;
-  let temp: string | undefined;
   try {
     const git = (args: string[]) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
     const commit = git(["rev-parse", "--verify", "HEAD^{commit}"]).trim();
     const repoRoot = git(["rev-parse", "--show-toplevel"]).trim();
     const prefix = path.relative(repoRoot, root).split(path.sep).join("/");
     const names = git(["ls-tree", "--full-tree", "-r", "-z", "--name-only", commit, "--", prefix || "."]).split("\0").filter(Boolean);
-    temp = fs.mkdtempSync(path.join(os.tmpdir(), "emviz-baseline-"));
-    fs.mkdirSync(path.join(temp, ".event-modeling"));
-    const configPath = (prefix ? prefix + "/" : "") + ".event-modeling/config.yaml";
-    fs.writeFileSync(path.join(temp, ".event-modeling/config.yaml"), git(["show", commit + ":" + configPath]));
-    validateConfiguredPaths(temp);
-    const config = readConfig(temp);
-    const modelFiles = names.map((name) => ({ name, local: prefix ? name.slice(prefix.length + 1) : name }))
-      .filter(({ local }) => local === ".event-modeling/config.yaml" || local === config.paths.eventsFile || local.endsWith(config.paths.sliceExtension) || (local.startsWith(config.paths.storiesDir + "/") && local.endsWith(".yaml")));
-    if (modelFiles.length > 512) throw new Error("Git baseline exceeds 512 files.");
+    const tracked = new Set(names.map((name) => prefix ? name.slice(prefix.length + 1) : name));
+    const files = new Map<string, string>();
     let bytes = 0;
-    for (const { name, local } of modelFiles) {
-      const output = path.resolve(temp, local);
-      if (path.relative(temp, output).startsWith("..")) throw new Error("Invalid Git path.");
-      const content = git(["show", commit + ":" + name]);
+    const read = (source: string) => {
+      const key = sourceKey(root, source);
+      if (files.has(key) || !tracked.has(key)) return;
+      if (files.size >= 512) throw new Error("Git baseline exceeds 512 files.");
+      const content = git(["show", commit + ":" + (prefix ? prefix + "/" : "") + key]);
       bytes += Buffer.byteLength(content);
       if (bytes > 8 * 1024 * 1024) throw new Error("Git baseline exceeds 8 MiB.");
-      fs.mkdirSync(path.dirname(output), { recursive: true });
-      fs.writeFileSync(output, content);
+      files.set(key, content);
+    };
+    read(".event-modeling/config.yaml");
+    const rawConfig = files.get(".event-modeling/config.yaml");
+    if (rawConfig === undefined) throw new Error("No model configuration at the baseline commit.");
+    const config = normalizedConfig(root, rawConfig);
+    read(config.paths.eventsFile);
+    for (const key of tracked) {
+      const isStory = (path.posix.dirname(key) === "." ? "" : path.posix.dirname(key)) === config.paths.storiesDir && key.endsWith(".yaml");
+      const isSlice = (config.paths.featuresDir === "" || key.startsWith(config.paths.featuresDir + "/")) && key.endsWith(config.paths.sliceExtension);
+      if (isStory || isSlice) read(key);
     }
-    const project = loadEventModelProject(temp);
-    return { project: { ...project, root }, label: commit, kind: "git" };
+    const preliminary = parseFiles(root, files, config);
+    for (const source of preliminary.stories.flatMap((story) => story.slices)) read(source);
+    return { project: parseFiles(root, files, config), label: commit, kind: "git" };
   } catch (error) {
     return { project: structuredClone(snapshot.project), label: "Startup snapshot (Git baseline unavailable: " + (error instanceof Error ? error.message.split("\n")[0] : "unknown error") + ")", kind: "startup" };
-  } finally {
-    if (temp) fs.rmSync(temp, { recursive: true, force: true });
   }
 }
 
@@ -178,7 +236,7 @@ export class FeedbackSession {
     return {
       sessionId: this.id, token: this.token, revision: this.current.revision,
       project: { ...project, graphSidecar: displayed.graphSidecar },
-      validation: validateEventModelProject(displayed.project), diff,
+      validation: displayed.validation, diff,
       baseline: { kind: this.baseline.kind, label: this.baseline.label },
       error: this.error, stale: Boolean(this.error),
       feedback: {
@@ -214,7 +272,7 @@ export class FeedbackSession {
     const yaml = (node.sourcePath && snapshot.files.get(node.sourcePath)) || node.raw || node.fields || node.description || node.label;
     if (yaml.length > 64000) throw new FeedbackError(413, "Selected source exceeds 64000 characters.");
     const related = snapshot.project.edges.filter((edge) => edge.source === nodeId || edge.target === nodeId);
-    const context = JSON.stringify({ node, connections: related.map((edge) => ({ ...edge, sourceNode: snapshot.project.nodes.find((item) => item.id === edge.source), targetNode: snapshot.project.nodes.find((item) => item.id === edge.target) })) });
+    const context = JSON.stringify({ node, validationFindings: snapshot.validation.findings.filter((finding) => finding.nodeId === nodeId || finding.path === node.sourcePath), connections: related.map((edge) => ({ ...edge, sourceNode: snapshot.project.nodes.find((item) => item.id === edge.source), targetNode: snapshot.project.nodes.find((item) => item.id === edge.target) })) });
     if (context.length > 128000) throw new FeedbackError(413, "Connected context exceeds 128000 characters.");
     this.state = { status: "queued", context: { request, revision, sourcePath: node.sourcePath, yaml, context } };
     this.waiter?.();

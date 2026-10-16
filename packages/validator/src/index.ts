@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { EventModelProject } from "@emviz/parser";
-import { readGraphSidecar, resolveSidecarNode } from "@emviz/graph";
+import { readGraphSidecar, resolveSidecarNode, type GraphSidecar } from "@emviz/graph";
 
 export type ValidationSeverity = "error" | "warning" | "info";
 
@@ -131,7 +131,7 @@ function connectedComponentCount(project: EventModelProject): number {
   return components;
 }
 
-export function validateEventModelProject(project: EventModelProject): ValidationReport {
+export function validateEventModelProject(project: EventModelProject, snapshot?: { sourcePaths: ReadonlySet<string>; sidecar: GraphSidecar | undefined }): ValidationReport {
   const findings: ValidationFinding[] = [];
   const eventNames = new Set(project.events.map((event) => event.name));
   const produced = new Map<string, string[]>();
@@ -144,7 +144,7 @@ export function validateEventModelProject(project: EventModelProject): Validatio
       );
     }
     for (const slicePath of story.slices) {
-      if (!fs.existsSync(path.join(project.root, slicePath))) {
+      if (snapshot ? !snapshot.sourcePaths.has(slicePath) : !fs.existsSync(path.join(project.root, slicePath))) {
         findings.push(finding("error", "S2", `Story "${story.name}" lists missing slice "${slicePath}".`, story.path));
       }
     }
@@ -284,7 +284,7 @@ export function validateEventModelProject(project: EventModelProject): Validatio
     findings.push(finding("warning", "M4", `The model has ${(project.events.length / commandSliceCount).toFixed(1)} events per command slice; check for UI/runtime events leaking into the model.`));
   }
 
-  const sidecar = readGraphSidecar(project.root);
+  const sidecar = snapshot ? snapshot.sidecar : readGraphSidecar(project.root);
   if (sidecar) {
     for (const [nodeId, sidecarNode] of Object.entries(sidecar.nodes)) {
       const matches = resolveSidecarNode(project, sidecarNode);
