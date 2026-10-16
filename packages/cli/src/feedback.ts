@@ -107,7 +107,7 @@ export function readSnapshot(target: string): Snapshot {
     visited.add(resolved);
     for (const entry of fs.readdirSync(resolved, { withFileTypes: true })) {
       if (++visitedEntries > 10000) throw new FeedbackError(413, "Model discovery exceeds 10000 directory entries.");
-      if (entry.name.startsWith(".") || ["node_modules", "dist", "build"].includes(entry.name)) continue;
+      if (entry.name.startsWith(".") || (key === "" && ["node_modules", "dist", "build"].includes(entry.name))) continue;
       const relative = path.posix.join(key, entry.name);
       const actual = withinRoot(root, relative);
       const stat = fs.statSync(actual);
@@ -168,8 +168,10 @@ function gitBaseline(snapshot: Snapshot): { project: EventModelProject; label: s
     const config = normalizedConfig(root, rawConfig);
     read(config.paths.eventsFile);
     for (const key of tracked) {
-      const isStory = (path.posix.dirname(key) === "." ? "" : path.posix.dirname(key)) === config.paths.storiesDir && key.endsWith(".yaml");
-      const isSlice = (config.paths.featuresDir === "" || key.startsWith(config.paths.featuresDir + "/")) && key.endsWith(config.paths.sliceExtension);
+      const isStory = (path.posix.dirname(key) === "." ? "" : path.posix.dirname(key)) === config.paths.storiesDir && !path.posix.basename(key).startsWith(".") && key.endsWith(".yaml");
+      const relative = config.paths.featuresDir ? key.slice(config.paths.featuresDir.length + 1) : key;
+      const ignored = relative.split("/").some((part) => part.startsWith(".")) || ["node_modules/", "dist/", "build/"].some((directory) => key.startsWith(directory));
+      const isSlice = !ignored && (config.paths.featuresDir === "" || key.startsWith(config.paths.featuresDir + "/")) && key.endsWith(config.paths.sliceExtension);
       if (isStory || isSlice) read(key);
     }
     const preliminary = parseFiles(root, files, config);
@@ -196,6 +198,7 @@ export class FeedbackSession {
   private error?: string;
   private waiter?: () => void;
   private polling = false;
+  private generation = 0;
 
   constructor(private target: string) {
     this.current = readSnapshot(target);
@@ -284,6 +287,7 @@ export class FeedbackSession {
     if (this.polling) throw new FeedbackError(409, "Only one poll may wait at a time.");
     if (this.state.status === "working" && this.state.agentId !== agentId) throw new FeedbackError(409, "Another agent owns the active request.");
     this.polling = true;
+    const generation = this.generation;
     this.lastSeen = Date.now();
     try {
       if (this.state.status !== "queued" && this.state.status !== "working" && this.state.status !== "stopped") {
@@ -297,7 +301,7 @@ export class FeedbackSession {
       }
       if (signal?.aborted) return { status: "disconnected", next_step: "Reconnect only if this session is still wanted." };
       this.lastSeen = Date.now();
-      if (this.state.status === "stopped") return { status: "stopped", next_step: "Stop polling and stop editing. The server cannot stop your process." };
+      if (generation !== this.generation || this.state.status === "stopped") return { status: "stopped", next_step: "Stop polling and stop editing. The server cannot stop your process." };
       if (this.state.status === "queued") {
         const before = this.refresh();
         if (before.revision !== this.state.context.revision) {
@@ -334,6 +338,7 @@ export class FeedbackSession {
   }
 
   stop(): void {
+    this.generation += 1;
     const context = "context" in this.state ? this.state.context : undefined;
     if (context) this.archive(context.request);
     this.state = { status: "stopped", context };

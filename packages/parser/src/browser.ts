@@ -45,7 +45,13 @@ type RawSlice = {
 };
 
 function normalizeRelativePath(filePath: string): string {
-  return filePath.replaceAll("\\", "/").replace(/^\/+/, "");
+  const parts: string[] = [];
+  for (const part of filePath.replaceAll("\\", "/").split("/")) {
+    if (!part || part === ".") continue;
+    if (part === ".." && parts.length > 0 && parts.at(-1) !== "..") parts.pop();
+    else parts.push(part);
+  }
+  return parts.join("/");
 }
 
 function basename(filePath: string, extension = ""): string {

@@ -209,7 +209,7 @@ describe("snapshot source boundary", () => {
     fs.mkdirSync(path.join(root, "workflows"), { recursive: true });
     fs.writeFileSync(path.join(root, ".event-modeling/config.yaml"), "paths:\n  events_file: ./models/registry.yaml\n  stories_dir: ./models/stories\n  features_dir: ./models/features\n");
     fs.writeFileSync(path.join(root, "models/registry.yaml"), "events:\n  Saved:\n    fields: 'id: string'\n");
-    fs.writeFileSync(path.join(root, "models/stories/main.yaml"), "name: Main\nslices:\n  - workflows/save.yaml\n");
+    fs.writeFileSync(path.join(root, "models/stories/main.yaml"), "name: Main\nslices:\n  - ./workflows/save.yaml\n");
     fs.writeFileSync(path.join(root, "workflows/save.yaml"), "slice: Save\ncommands:\n  - name: Save\n    produces: [Saved]\n");
     const git = (args: string[]) => execFileSync("git", ["-C", repo, ...args], { stdio: "pipe" });
     git(["init"]);
@@ -233,4 +233,13 @@ describe("snapshot source boundary", () => {
     fs.writeFileSync(path.join(root, slice), "x".repeat(8 * 1024 * 1024 + 1));
     expect(() => readSnapshot(root)).toThrow("8 MiB");
   });
+});
+
+it("does not revive an old waiting poll when stop and resume arrive together", async () => {
+  const session = new FeedbackSession(project());
+  const waiting = session.poll("agent");
+  session.stop();
+  session.start();
+  expect((await waiting).status).toBe("stopped");
+  expect((await session.poll("new-agent", undefined, 0)).status).toBe("timeout");
 });
