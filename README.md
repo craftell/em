@@ -23,10 +23,15 @@ It is not a YAML editor. The canonical model stays in your Event Modeling files;
    - Detect stale `.event-modeling/graph.json` selectors and other model drift.
 
 4. **Copy context for LLM workflows**
-   - Copy stable `em://...` node references.
+   - Copy `em://...` node references with source context.
    - Copy YAML excerpts, connected context, or an edit-prompt scaffold.
 
-5. **Compare model versions**
+5. **Send feedback to your own agent**
+   - Start your LLM agent separately and connect it with the `em-feedback` skill.
+   - Select a node, send feedback, and review the agent's reply with current, session, and turn views.
+   - The agent edits canonical YAML directly. The local server does not invoke an LLM or commit changes.
+
+6. **Compare model versions**
    - Run `emviz diff` against a git ref or another project directory.
    - Review added, removed, and changed nodes on the same canvas.
    - Filter the canvas to focus on one kind of change.
@@ -63,6 +68,7 @@ The installed skills provide:
 1. `em-model` for creating canonical Event Modeling YAML.
 2. `em-extract` for extracting candidate models from code or an Understand Anything knowledge graph.
 3. `em-lint` for validating Event Modeling YAML.
+4. `em-feedback` for receiving browser feedback in an agent you start yourself.
 
 ## Usage
 
@@ -109,9 +115,23 @@ The installed skills provide:
 
    `--from` is the base model and `--to` is the target model. Each side can be a git ref or an Event Modeling project directory.
 
+## Work with an external agent
+
+Start your preferred LLM agent in the project directory. Ask it to use the [em-feedback skill](skills/em-feedback/SKILL.md).
+
+The agent runs `emviz open .` and gives you the returned local URL. Open that URL, select a node, and send a message from **Node feedback**. The agent receives the selected node's context, edits the YAML files, and replies. It then waits for your next message.
+
+Use **Current** to inspect files on disk, **Session diff** to compare with the fixed session baseline, and **Turn diff** to review the most recent completed request. A turn diff includes every file change between claim and reply, including concurrent manual edits. It does not identify who made each change.
+
+**Stop session** stops feedback. **Resume session** starts accepting feedback again, but you must restart the external agent's poll loop after it exits. Restarting the server discards request history.
+
+Node IDs can change when names collide. Feedback captures the current reference, source, context, and file revision. Re-select a node if the model changes before the request starts.
+
+See the [CLI command reference](packages/cli/README.md) for session commands, limits, and cleanup.
+
 ## Diff View
 
-`emviz diff` opens the normal canvas with diff metadata layered onto the graph. Added nodes and edges are green, removed nodes and edges are red and dashed, and changed nodes are amber.
+`emviz diff` opens the normal canvas with diff metadata layered onto the graph. Node fills keep their semantic colors. Added nodes have green outlines and badges, changed nodes have amber outlines and badges, and removed nodes are dashed red ghosts. Edge colors show the same change statuses.
 
 ![emviz diff overview](docs/images/emviz-diff-overview.png)
 
@@ -136,7 +156,7 @@ event-model/
     **/*.slice.yaml
 ```
 
-`.event-modeling/config.yaml` is owned by the modeling workflow. `.event-modeling/graph.json` is owned by `emviz` and stores stable visualizer node IDs. Keeping that sidecar separate avoids adding visualizer-only IDs to canonical slice YAML.
+`.event-modeling/config.yaml` is owned by the modeling workflow. `.event-modeling/graph.json` is owned by `emviz` and stores visualizer selectors and node IDs. Keeping that sidecar separate avoids adding visualizer-only IDs to canonical slice YAML.
 
 ## Interface
 
@@ -151,7 +171,7 @@ event-model/
    - Uses React Flow controls for zoom and fit view.
 
 3. **Selection panel**
-   - Shows the selected node type, stable reference, source path, and source excerpt.
+   - Shows the selected node type, current reference, source path, and source excerpt.
    - Lists incoming and outgoing connections.
    - Provides `Copy for LLM` actions for reference, YAML, context, and edit prompt.
 
@@ -213,6 +233,8 @@ pnpm build
 node packages/cli/dist/index.js .
 ```
 
+The feedback verification guide is a [DRAFT](.agents/skills/verify-emviz/SKILL.md). Its real-browser script has not been run during this change.
+
 ## Package Layout
 
 ```text
@@ -227,6 +249,7 @@ skills/
   em-model/    # Creates Event Modeling YAML
   em-extract/  # Extracts candidates from code or an Understand Anything graph
   em-lint/     # Validates Event Modeling YAML
+  em-feedback/ # Connects a user-started agent to browser feedback
 ```
 
 ## References
