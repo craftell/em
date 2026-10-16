@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { FeedbackSession, handleFeedback, trustedRequest, readSnapshot } from "./feedback.js";
+import { writeGraphSidecar } from "@emviz/graph";
 import { parseConnection } from "./agent-cli.js";
 
 const roots: string[] = [];
@@ -168,6 +169,19 @@ describe("HTTP boundary", () => {
 });
 
 describe("snapshot source boundary", () => {
+  it("rejects a dangling sidecar symlink before initial sync can create an external file", () => {
+    const root = project();
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "emviz-outside-test-"));
+    roots.push(outside);
+    const destination = path.join(outside, "graph.json");
+    fs.symlinkSync(destination, path.join(root, ".event-modeling/graph.json"));
+    expect(() => {
+      const initial = readSnapshot(root);
+      if (!initial.graphSidecar) writeGraphSidecar(initial.project);
+    }).toThrow();
+    expect(fs.existsSync(destination)).toBe(false);
+  });
+
   it("rejects out-of-root story paths and source symlinks before parsing their contents", () => {
     const root = project();
     const outside = fs.mkdtempSync(path.join(os.tmpdir(), "emviz-outside-test-"));

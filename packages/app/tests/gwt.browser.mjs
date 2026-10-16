@@ -49,6 +49,7 @@ async function open(count = 100, transform = (project) => project, diff) {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/api/*", (route) => route.fulfill({ json: route.request().url().endsWith("/model") ? transform(model(count)) : { findings: [], errors: 0, warnings: 0 } }));
+  await page.route("**/api/session?**", (route) => route.fulfill({ status: 404, body: "" }));
   // Prevent treating the validation payload as a diff.
   await page.route("**/api/diff", (route) => route.fulfill(diff ? { json: diff } : { status: 404, body: "" }));
   await page.goto(url);
@@ -387,6 +388,7 @@ async function savedHtml(project, diff) {
   try {
     await page.route("**/api/*", (route) => {
       const endpoint = new URL(route.request().url()).pathname;
+      if (endpoint === "/api/session") return route.fulfill({ status: 404, body: "" });
       return route.fulfill(endpoint === "/api/model" ? { json: project } : endpoint === "/api/diff" ? (diff ? { json: diff } : { status: 404, body: "" }) : { json: { findings: [], errors: 0, warnings: 0 } });
     });
     await page.goto(`http://127.0.0.1:${host.httpServer.address().port}`);
@@ -557,6 +559,9 @@ test("real diff survives export: filtered summaries, hidden changes and old cont
   target.nodes.push({ id: "added-event", type: "event", label: "Added event", fields: "added: string" });
   target.edges.push({ id: "added-edge", source: "command-0", target: "added-event", kind: "command-event" });
   const { project, diff } = diffEventModelProjects(base, target);
+  assert.equal(diff.edgeStatus.edge, "changed");
+  assert.equal(diff.previousEdges.edge.label, "old");
+  assert.deepEqual(project.edges.filter((edge) => edge.source === "command-0" && edge.target === "event").map((edge) => [edge.id, edge.label]), [["edge", "new"]]);
   // Expectations come from the input definitions, independently of the merged output.
   const currentIds = [0, 1, 2, 3, 4, 9, 10, 11, 12, 13, 14, 15].map((n) => `gwt-0-${n}`);
   const expectedIds = {
@@ -636,8 +641,9 @@ test("real diff survives export: filtered summaries, hidden changes and old cont
       assert.equal(await page.evaluate(() => window.copiedText), "em://event_model/gwt-1-15");
       await hiddenGwtDetail.getByRole("button", { name: "YAML Source YAML for the whole slice", exact: true }).click();
       assert.equal(await page.evaluate(() => window.copiedText), base.nodes.find((node) => node.id === "gwt-1-15").raw);
-      // The existing engine treats an edge label change as removal + addition.
-      for (const status of ["added", "removed"]) await page.locator(`.react-flow__edge.edge-diff-${status}`).first().waitFor();
+      await page.locator('.react-flow__edge[data-id="edge"].edge-diff-changed').waitFor();
+      assert.equal(await page.locator('.react-flow__edge[data-id="edge"].edge-diff-added, .react-flow__edge[data-id="edge"].edge-diff-removed').count(), 0);
+      for (const status of ["added", "removed"]) await page.locator(`.react-flow__edge[data-id="${status}-edge"].edge-diff-${status}`).waitFor();
       for (const status of ["added", "removed"]) {
         await page.locator(`[data-id="${status}-event"]`).click();
         assert.match(await page.getByRole("complementary", { name: "Node details" }).textContent(), new RegExp(`${status}: string`));
@@ -700,4 +706,121 @@ test("diff duplicate names and removed ID collisions select the correct source i
       assert.deepEqual(requests, []);
     } finally { await page.close(); }
   }
+});
+
+async function openFeedbackSession(project, diff) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const errors = [];
+  const requests = [];
+  const snapshot = {
+    sessionId: "browser-feedback-session",
+    token: "browser-test-only-token",
+    revision: "revision-1",
+    project,
+    validation: { findings: [], errors: 0, warnings: 0 },
+    diff,
+    feedback: { status: "idle", history: [], agent: { connected: true } },
+    baseline: { kind: "startup", label: "Startup snapshot" },
+    stale: false
+  };
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: async (value) => { window.copiedText = value; } } });
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.route("**/api/*", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session") return route.fulfill({ json: snapshot });
+    requests.push({ path, method: route.request().method() });
+    return route.fulfill({ status: 404, body: "" });
+  });
+  await page.goto(url);
+  await page.locator(".react-flow__node").first().waitFor();
+  await page.waitForTimeout(600);
+  let revision = 1;
+  const refresh = async (nextProject = snapshot.project) => {
+    snapshot.project = nextProject;
+    snapshot.revision = "revision-" + ++revision;
+    const response = page.waitForResponse(async (response) => {
+      if (new URL(response.url()).pathname !== "/api/session" || !response.ok()) return false;
+      return (await response.json()).revision === snapshot.revision;
+    });
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await response;
+  };
+  return { page, errors, requests, snapshot, refresh };
+}
+
+test("unsent feedback survives target rename and deletion without transferring to another node or session", async () => {
+  for (const change of ["rename", "delete"]) {
+    const initial = model(4);
+    const { page, errors, requests, snapshot, refresh } = await openFeedbackSession(initial);
+    try {
+      await page.locator('[data-id="command-0"]').click();
+      await page.getByLabel("Feedback message", { exact: true }).fill("Keep this draft about Command 0.");
+      const next = structuredClone(initial);
+      if (change === "rename") next.nodes.find((node) => node.id === "command-0").label = "Renamed command";
+      else next.nodes = next.nodes.filter((node) => node.id !== "command-0");
+      await refresh(next);
+      await page.waitForFunction(() => !document.querySelector(".feedback-composer"));
+      const toggle = page.locator("summary").filter({ hasText: "Unsent feedback drafts" });
+      await toggle.click();
+      const recovery = page.getByRole("list", { name: "Unsent feedback drafts" });
+      const original = recovery.getByRole("listitem").filter({ hasText: "Keep this draft about Command 0." });
+      assert.equal(await original.locator("strong").textContent(), "Command 0");
+      assert.match(await original.textContent(), /original node is no longer available/);
+      await original.getByRole("button", { name: "Copy draft", exact: true }).click();
+      assert.equal(await page.evaluate(() => window.copiedText), "Keep this draft about Command 0.");
+      await toggle.click();
+      await page.locator('[data-id="command-1"]').click({ force: true });
+      assert.equal(await page.getByLabel("Feedback message", { exact: true }).inputValue(), "");
+      await page.getByLabel("Feedback message", { exact: true }).fill("Separate draft for Command 1.");
+      await page.keyboard.press("Escape");
+      await page.locator('[data-id="command-1"]').click({ force: true });
+      assert.equal(await page.getByLabel("Feedback message", { exact: true }).inputValue(), "Separate draft for Command 1.");
+      snapshot.sessionId = "restarted-feedback-session";
+      await refresh();
+      await page.waitForFunction(() => !document.querySelector(".feedback-composer"));
+      await page.locator('[data-id="command-1"]').click({ force: true });
+      assert.equal(await page.getByLabel("Feedback message", { exact: true }).inputValue(), "");
+      await toggle.click();
+      assert.match(await recovery.textContent(), /previous session/);
+      assert.ok((await recovery.textContent()).includes("Keep this draft about Command 0."));
+      assert.ok((await recovery.textContent()).includes("Separate draft for Command 1."));
+      assert.deepEqual(requests, []);
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  }
+});
+
+test("GWT Old version disables feedback while preserving the current-node draft", async () => {
+  const { diffEventModelProjects } = await server.ssrLoadModule("../graph/src/index.ts");
+  const base = model(4);
+  const target = structuredClone(base);
+  const changed = target.nodes.find((node) => node.id === "gwt-0-2");
+  changed.description = "Updated scenario";
+  const { project, diff } = diffEventModelProjects(base, target);
+  const { page, errors, requests } = await openFeedbackSession(project, diff);
+  try {
+    await page.getByRole("button", { name: "Session diff", exact: true }).click();
+    await page.locator('[data-id="gwt-0-0"] .gwt-summary button').filter({ hasText: "Scenario 3" }).click();
+    const panel = page.getByRole("complementary", { name: "Node details" });
+    const message = page.getByLabel("Feedback message", { exact: true });
+    const send = panel.getByRole("button", { name: "Send feedback", exact: true });
+    await message.fill("Review the current scenario.");
+    assert.equal(await send.isEnabled(), true);
+    await panel.getByRole("button", { name: "Old version", exact: true }).click();
+    assert.equal(await message.isDisabled(), true);
+    assert.equal(await send.isDisabled(), true);
+    assert.equal(await message.inputValue(), "Review the current scenario.");
+    assert.match(await panel.textContent(), /Switch to New version/);
+    await panel.getByRole("button", { name: "New version", exact: true }).click();
+    assert.equal(await message.isEnabled(), true);
+    assert.equal(await send.isEnabled(), true);
+    assert.equal(await message.inputValue(), "Review the current scenario.");
+    await panel.getByRole("button", { name: "All scenarios", exact: true }).click();
+    await page.getByRole("complementary", { name: "GWT scenarios" }).getByRole("button", { name: "Scenario 3 · changed", exact: true }).click();
+    assert.equal(await message.inputValue(), "Review the current scenario.");
+    assert.deepEqual(requests, []);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
 });

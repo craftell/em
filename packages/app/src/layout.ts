@@ -260,6 +260,15 @@ export function toFlow(
     diffFilter?: "all" | "added" | "removed" | "changed";
   } = {}
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
+  const originalNodes = new Map(project.nodes.map((node) => [node.id, node]));
+  project = {
+    ...project,
+    nodes: project.nodes.map((node) => {
+      if (node.type !== "event") return node;
+      const producerEdge = project.edges.find((edge) => edge.kind === "command-event" && edge.target === node.id);
+      return { ...node, storyName: producerEdge ? originalNodes.get(producerEdge.source)?.storyName : node.storyName };
+    })
+  };
   const storyIndexes = storyIndex(project);
   const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
   const sliceMetrics = buildSliceMetrics(project, nodeById);
@@ -356,7 +365,6 @@ export function toFlow(
       const metrics = sliceMetrics.get(sliceKey(producer));
       positions.set(event.id, { x: origin.x + ((metrics?.width ?? MIN_SLICE_WIDTH) - NODE_WIDTH) / 2, y: origin.y + EVENT_ROW_Y });
     }
-    event.storyName = producer?.storyName;
   }
 
   const nodes = project.nodes.map((node) => {

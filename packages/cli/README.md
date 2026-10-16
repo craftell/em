@@ -71,7 +71,9 @@ Closes the owned local server. Its in-memory request history ends with the proce
 
 ## Feedback limits
 
-A session accepts one queued or working request at a time. Another request receives a busy error. Messages accept at most 4,000 characters. Replies accept at most 8,000 characters. HTTP request bodies have a separate 32 KiB limit.
+A session accepts one queued or working request at a time. Another request receives a busy error. Messages accept at most 4,000 characters. Replies accept at most 8,000 characters. HTTP request bodies have a separate 32 KiB limit. The session retains the latest 20 request records. Idempotent retries are recognized while their records remain in memory.
+
+Project feedback reads at most 512 model files and 8 MiB per snapshot. Discovery stops after 10,000 directory entries. Configured sources and symlink targets must stay inside the selected project root. A selected source is limited to 64,000 characters, and connected context to 128,000 characters.
 
 Feedback operations require the session token. The browser obtains its token from the same-origin session snapshot. The agent passes the token through `--token`. Do not expose the server through a network proxy or share its token.
 

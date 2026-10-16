@@ -17,6 +17,8 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
+import { FeedbackComposer, FeedbackSessionBar, useFeedbackSession, type SessionController } from "./feedback";
+import { connectionsAfter, connectionsBefore, feedbackDraftKey, previousNodeFor, resolveSelection, selectionForNode, updateFeedbackDraft, type FeedbackDrafts, type FeedbackView, type NodeSelection } from "./feedbackState";
 import type { EventModelProject, FieldFlow, GraphDiff, GraphDiffStatus, ProjectNode, ValidationFinding, ValidationReport } from "./types";
 import { loadEventModelProjectFromFiles, type InMemoryEventModelFile } from "@emviz/parser/browser";
 import { validateEventModelProject as validateImportedProject } from "@emviz/validator/browser";
@@ -511,7 +513,12 @@ function SourcePanel({
   gwtList,
   onGwtList,
   onClose,
-  onFocusNode
+  onFocusNode,
+  session,
+  view,
+  draftMessage,
+  onDraftChange,
+  onDraftSent
 }: {
   project: EventModelProject;
   selectedNode?: ProjectNode;
@@ -527,9 +534,14 @@ function SourcePanel({
   onGwtList: (id: string) => void;
   onClose: () => void;
   onFocusNode: (id: string) => void;
+  session?: SessionController;
+  view: FeedbackView;
+  draftMessage: string;
+  onDraftChange: (message: string) => void;
+  onDraftSent: (message: string) => void;
 }) {
   const [oldVersionId, setOldVersionId] = useState<string>();
-  const previousNode = currentNode && diff?.nodeStatus[currentNode.id] === "changed" ? diff.previousGwtNodes?.[currentNode.id] : undefined;
+  const previousNode = previousNodeFor(diff, currentNode);
   const selectedNode = currentNode && previousNode && oldVersionId === currentNode?.id ? { ...previousNode, id: currentNode.id } : currentNode;
   const [copied, setCopied] = useState<string>();
   const [nameFilter, setNameFilter] = useState("");
@@ -588,8 +600,10 @@ function SourcePanel({
     );
   }
 
-  const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
-  const connections = project.edges.filter((edge) => {
+  const showingBefore = Boolean(previousNode && oldVersionId === currentNode?.id) || diff?.nodeStatus[selectedNode.id] === "removed";
+  const detailsProject = showingBefore ? connectionsBefore(project, diff) : connectionsAfter(project, diff);
+  const nodeById = new Map(detailsProject.nodes.map((node) => [node.id, node]));
+  const connections = detailsProject.edges.filter((edge) => {
     const source = nodeById.get(edge.source);
     const target = nodeById.get(edge.target);
     return isBehaviorConnection(edge.kind) && source && target && source.type !== "gwt" && target.type !== "gwt";
@@ -617,7 +631,7 @@ function SourcePanel({
   const prompt = `Please update this event model node.\n\nReference:\n${reference}\n\nSource path:\n${selectedNode.sourcePath ?? "unknown"}\n\nCurrent context:\n${yaml}\n\nGoal:\n`;
 
   return (
-    <aside className={`panel panel-right ${selectedNode.type === "gwt" ? "gwt-panel" : ""}`} aria-label="Node details" onKeyDown={selectedNode.type === "gwt" ? stopPanelKeys : undefined} onKeyUp={selectedNode.type === "gwt" ? stopPanelKeys : undefined}>
+    <aside className={`panel panel-right ${selectedNode.type === "gwt" ? "gwt-panel" : ""}`} aria-label="Node details" onKeyDown={stopPanelKeys} onKeyUp={stopPanelKeys}>
       {selectedNode.type === "gwt" ? <div className="gwt-panel-actions"><button type="button" onClick={() => onGwtList(selectedNode.id)}>All scenarios</button><button type="button" onClick={onClose}>Close</button></div> : null}
       <div className="panel-heading">
         <h2>{selectedNode.label}</h2>
@@ -631,9 +645,10 @@ function SourcePanel({
           <span className="target-icon" aria-hidden="true" />
         </button>
       </div>
+      {diff && currentNode ? <p>{diff.nodeStatus[currentNode.id]} · {showingBefore ? "Old version" : "New version"}</p> : null}
+      {previousNode ? <div className="gwt-panel-actions" role="group" aria-label="Node version"><button type="button" aria-pressed={oldVersionId !== currentNode?.id} onClick={() => setOldVersionId(undefined)}>New version</button><button type="button" aria-pressed={oldVersionId === currentNode?.id} onClick={() => setOldVersionId(currentNode?.id)}>Old version</button></div> : null}
+      {session?.snapshot && currentNode ? <FeedbackComposer key={feedbackDraftKey(session.snapshot.sessionId, currentNode)} session={session} view={view} node={currentNode} diff={diff} showingBefore={showingBefore} message={draftMessage} onMessageChange={onDraftChange} onSent={onDraftSent} /> : null}
       {selectedNode.type === "gwt" ? <section aria-label="Scenario details">
-        {diff && currentNode ? <p>{diff.nodeStatus[currentNode.id]} · {diff.nodeStatus[currentNode.id] === "removed" || oldVersionId === currentNode.id ? "Old version" : "New version"}</p> : null}
-        {previousNode ? <div className="gwt-panel-actions"><button type="button" aria-pressed={oldVersionId !== currentNode?.id} onClick={() => setOldVersionId(undefined)}>New version</button><button type="button" aria-pressed={oldVersionId === currentNode?.id} onClick={() => setOldVersionId(currentNode?.id)}>Old version</button></div> : null}
         {selectedNode.description ? <p>{selectedNode.description}</p> : null}
         <GwtStepList title="Given" items={selectedNode.given} />
         <GwtStepList title="When" items={selectedNode.when} />
@@ -823,20 +838,32 @@ function FlowWorkspace() {
   const [diff, setDiff] = useState<GraphDiff>();
   const [diffFilter, setDiffFilter] = useState<DiffFilter>("all");
   const [loadState, setLoadState] = useState<"loading" | "ready" | "import">("loading");
+  const [sourceMode, setSourceMode] = useState<"remote" | "local">("remote");
   const [importError, setImportError] = useState<string>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [exportState, setExportState] = useState<"idle" | "exporting">("idle");
   const [exportError, setExportError] = useState<string>();
-  const [selectedId, setSelectedId] = useState<string>();
-  const [gwtListId, setGwtListId] = useState<string>();
+  const [drafts, setDrafts] = useState<FeedbackDrafts>({});
+  const [selection, setSelection] = useState<NodeSelection>();
+  const [gwtListSelection, setGwtListSelection] = useState<NodeSelection>();
+  const selectedId = resolveSelection(project, selection)?.id;
+  const gwtListId = resolveSelection(project, gwtListSelection)?.id;
   const gwtOpener = useRef<HTMLElement | null>(null);
-  const [backStack, setBackStack] = useState<string[]>([]);
-  const [forwardStack, setForwardStack] = useState<string[]>([]);
+  const [backStack, setBackStack] = useState<NodeSelection[]>([]);
+  const [forwardStack, setForwardStack] = useState<NodeSelection[]>([]);
   const [search, setSearch] = useState("");
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string>();
   const [selectedFieldName, setSelectedFieldName] = useState<string>();
   const [validationOpen, setValidationOpen] = useState(false);
   const { setCenter, fitView } = useReactFlow();
+  const [view, setView] = useState<FeedbackView>("current");
+  const session = useFeedbackSession(!window.__EMVIZ_EXPORT__ && sourceMode === "remote" && loadState !== "import", view);
+  const appliedSnapshot = useRef<{ key: string; sessionId: string } | undefined>(undefined);
+  const snapshotKey = session.snapshot ? JSON.stringify([session.snapshot.sessionId, session.snapshot.revision, view, session.snapshot.feedback.request?.id, session.snapshot.feedback.status]) : undefined;
+  const displayedSession: SessionController = {
+    ...session,
+    connection: session.connection === "live" && snapshotKey && appliedSnapshot.current?.key !== snapshotKey ? "checking" : session.connection
+  };
 
   useEffect(() => {
     if (window.__EMVIZ_EXPORT__?.project) {
@@ -848,22 +875,63 @@ function FlowWorkspace() {
       return;
     }
 
+    if (sourceMode === "local" || session.connection !== "unavailable") return;
+    let cancelled = false;
     void Promise.all([
       fetch("/api/model").then((res) => res.json()),
       fetch("/api/validation").then((res) => res.ok ? res.json() : undefined).catch(() => undefined),
       fetch("/api/diff").then((res) => res.ok ? res.json() : undefined).catch(() => undefined)
     ]).then(([model, validation, diffPayload]) => {
+      if (cancelled) return;
+      if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) throw new Error("No project server is available.");
       setProject(model);
       setReport(validation);
       setDiff(diffPayload);
       setLoadState("ready");
       window.setTimeout(() => void fitView({ padding: 0.18, duration: 300 }), 50);
     }).catch(() => {
-      setLoadState("import");
+      if (!cancelled) setLoadState("import");
     });
-  }, [fitView]);
+    return () => { cancelled = true; };
+  }, [fitView, session.connection, sourceMode]);
+
+  useEffect(() => {
+    const snapshot = session.snapshot;
+    if (!snapshot || session.snapshotView !== view) return;
+    const key = snapshotKey!;
+    if (appliedSnapshot.current?.key === key) return;
+    const firstSnapshot = !appliedSnapshot.current;
+    if (appliedSnapshot.current && appliedSnapshot.current.sessionId !== snapshot.sessionId) {
+      setSelection(undefined);
+      setGwtListSelection(undefined);
+      setBackStack([]);
+      setForwardStack([]);
+      setSelectedFieldName(undefined);
+    }
+    appliedSnapshot.current = { key, sessionId: snapshot.sessionId };
+    setProject(snapshot.project);
+    setReport(snapshot.validation);
+    setDiff(snapshot.diff);
+    setLoadState("ready");
+    setHoveredEdgeId(undefined);
+    if (firstSnapshot) window.setTimeout(() => void fitView({ padding: 0.18, duration: 300 }), 50);
+  }, [fitView, session.snapshot, session.snapshotView, snapshotKey, view]);
+
+  useEffect(() => {
+    if (!project) return;
+    if (selection && !resolveSelection(project, selection)) setSelection(undefined);
+    if (gwtListSelection && !resolveSelection(project, gwtListSelection)) setGwtListSelection(undefined);
+    setBackStack((stack) => stack.filter((item) => resolveSelection(project, item)));
+    setForwardStack((stack) => stack.filter((item) => resolveSelection(project, item)));
+  }, [project, selection, gwtListSelection]);
 
   const selectedNode = useMemo(() => project?.nodes.find((node) => node.id === selectedId), [project, selectedId]);
+  const draftSessionId = session.snapshot?.sessionId;
+  const draftKey = draftSessionId && selectedNode ? feedbackDraftKey(draftSessionId, selectedNode) : undefined;
+  const changeDraft = (message: string, expectedMessage?: string) => {
+    if (!draftSessionId || !selectedNode) return;
+    setDrafts((current) => updateFeedbackDraft(current, draftSessionId, selectedNode, message, expectedMessage));
+  };
   const selectedFindings = useMemo(
     () => report?.findings.filter((finding) => finding.nodeId === selectedId) ?? [],
     [report, selectedId]
@@ -904,7 +972,7 @@ function FlowWorkspace() {
     const node = flow.nodes.find((candidate) => candidate.id === nodeId);
     setHoveredEdgeId(undefined);
     if (recordHistory && selectedId && selectedId !== nodeId) {
-      setBackStack((stack) => [...stack, selectedId]);
+      if (selection) setBackStack((stack) => [...stack, selection]);
       setForwardStack([]);
     }
     const isGwt = node?.data.projectNode.type === "gwt";
@@ -913,18 +981,18 @@ function FlowWorkspace() {
       gwtOpener.current = active?.closest(".search-results") ? document.querySelector<HTMLInputElement>(".search-box input") : active instanceof HTMLElement ? active : null;
     }
     if (!isGwt) gwtOpener.current = null;
-    setGwtListId(undefined);
-    setSelectedId(nodeId);
+    setGwtListSelection(undefined);
+    if (project) setSelection(selectionForNode(project, nodeId));
     if (node && (!isGwt || moveToNode)) {
       void setCenter(node.position.x + 80, node.position.y + 60, { zoom: 1.2, duration: 350 });
     }
-  }, [flow.nodes, selectedId, setCenter]);
+  }, [flow.nodes, project, selection, selectedId, setCenter]);
 
   const clearFocus = useCallback(() => {
-    setSelectedId(undefined);
+    setSelection(undefined);
     setHoveredEdgeId(undefined);
     setSelectedFieldName(undefined);
-    setGwtListId(undefined);
+    setGwtListSelection(undefined);
     const opener = gwtOpener.current;
     gwtOpener.current = null;
     if (!opener) return;
@@ -936,8 +1004,8 @@ function FlowWorkspace() {
 
   const showGwtList = useCallback((id: string) => {
     if (!gwtOpener.current) gwtOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setGwtListId(id);
-  }, []);
+    if (project) setGwtListSelection(selectionForNode(project, id));
+  }, [project]);
   const gwtActions = useMemo(() => ({ open: focusNode, list: showGwtList }), [focusNode, showGwtList]);
   const gwtListNode = project?.nodes.find((node) => node.id === gwtListId);
   const gwtList = gwtListNode ? project?.nodes.filter((node) => node.type === "gwt" && (gwtListNode.sourcePath ? node.sourcePath === gwtListNode.sourcePath : node.sliceTitle === gwtListNode.sliceTitle)).filter((node) => !diff || diffFilter === "all" || diff.nodeStatus[node.id] === diffFilter) : undefined;
@@ -992,17 +1060,19 @@ function FlowWorkspace() {
     const previous = backStack.at(-1);
     if (!previous) return;
     setBackStack((stack) => stack.slice(0, -1));
-    if (selectedId) setForwardStack((stack) => [...stack, selectedId]);
-    focusNode(previous, false);
-  }, [backStack, focusNode, selectedId]);
+    if (selection) setForwardStack((stack) => [...stack, selection]);
+    const node = resolveSelection(project, previous);
+    if (node) focusNode(node.id, false);
+  }, [backStack, focusNode, project, selection]);
 
   const goForward = useCallback(() => {
     const next = forwardStack.at(-1);
     if (!next) return;
     setForwardStack((stack) => stack.slice(0, -1));
-    if (selectedId) setBackStack((stack) => [...stack, selectedId]);
-    focusNode(next, false);
-  }, [focusNode, forwardStack, selectedId]);
+    if (selection) setBackStack((stack) => [...stack, selection]);
+    const node = resolveSelection(project, next);
+    if (node) focusNode(node.id, false);
+  }, [focusNode, forwardStack, project, selection]);
 
   const importFiles = useCallback((fileList: FileList) => {
     void filesFromFileList(fileList).then((files) => {
@@ -1014,6 +1084,7 @@ function FlowWorkspace() {
           name: "Browser Import"
         }
       };
+      setSourceMode("local");
       setProject(importedProject);
       const baseReport = validateImportedProject(parserProject);
       const extraFindings = sidecarFindings(importedProject);
@@ -1023,8 +1094,9 @@ function FlowWorkspace() {
         findings: [...baseReport.findings, ...extraFindings]
       });
       setDiff(undefined);
+      setGwtListSelection(undefined);
       setDiffFilter("all");
-      setSelectedId(undefined);
+      setSelection(undefined);
       setHoveredEdgeId(undefined);
       setSelectedFieldName(undefined);
       setBackStack([]);
@@ -1043,11 +1115,11 @@ function FlowWorkspace() {
   }
 
   if (!project) {
-    return <div className="loading">Loading event model...</div>;
+    return <div className="loading"><div>{session.error ? <><p role="alert">{session.error}</p><button type="button" onClick={session.refresh}>Retry connection</button></> : "Loading event model..."}</div></div>;
   }
 
   return (
-    <div className={`app-shell ${diff ? "diff-mode" : ""}`}>
+    <div className={`app-shell ${diff ? "diff-mode" : ""} ${session.snapshot ? "has-feedback" : ""}`}>
       <header className="toolbar">
         <div className="model-summary">
           <strong>emviz</strong>
@@ -1101,6 +1173,7 @@ function FlowWorkspace() {
         </div>
         {exportError ? <div className="toolbar-error" role="alert">{exportError}</div> : null}
       </header>
+      <FeedbackSessionBar session={displayedSession} drafts={Object.values(drafts)} view={view} onView={(next) => { setView(next); setDiffFilter("all"); }} />
       <ValidationPanel
         report={report}
         onSelect={focusNode}
@@ -1119,6 +1192,11 @@ function FlowWorkspace() {
       <SourcePanel
         key={(gwtListNode ?? selectedNode)?.type === "gwt" ? `gwt:${(gwtListNode ?? selectedNode)?.sourcePath ?? (gwtListNode ?? selectedNode)?.sliceTitle}` : "selection"}
         diff={diff}
+        session={session.snapshot ? displayedSession : undefined}
+        view={view}
+        draftMessage={draftKey ? drafts[draftKey]?.message ?? "" : ""}
+        onDraftChange={changeDraft}
+        onDraftSent={(message) => changeDraft("", message)}
         gwtList={gwtList}
         onGwtList={showGwtList}
         onClose={clearFocus}

@@ -59,6 +59,16 @@ function withinRoot(root: string, source: string): string {
   return resolved;
 }
 
+function sourceExists(root: string, source: string): boolean {
+  try {
+    fs.lstatSync(path.resolve(root, sourceKey(root, source)));
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
 function normalizedConfig(root: string, text: string): ModelConfig {
   const config = parseConfig(text);
   return { ...config, paths: {
@@ -101,7 +111,7 @@ export function readSnapshot(target: string): Snapshot {
   let visitedEntries = 0;
   const walk = (directory: string, recursive: boolean, extension: string, visited = new Set<string>()) => {
     const key = sourceKey(root, directory);
-    if (!fs.existsSync(path.resolve(root, key))) return;
+    if (!sourceExists(root, key)) return;
     const resolved = withinRoot(root, key);
     if (visited.has(resolved)) return;
     visited.add(resolved);
@@ -120,9 +130,9 @@ export function readSnapshot(target: string): Snapshot {
   const preliminary = parseFiles(root, files, config);
   for (const source of preliminary.stories.flatMap((story) => story.slices)) {
     const key = sourceKey(root, source);
-    if (fs.existsSync(path.resolve(root, key))) read(key);
+    if (sourceExists(root, key)) read(key);
   }
-  if (fs.existsSync(path.join(root, ".event-modeling/graph.json"))) read(".event-modeling/graph.json");
+  if (sourceExists(root, ".event-modeling/graph.json")) read(".event-modeling/graph.json");
   const project = parseFiles(root, files, config);
   const sidecarText = files.get(".event-modeling/graph.json");
   const graphSidecar = sidecarText === undefined ? undefined : JSON.parse(sidecarText) as GraphSidecar;
