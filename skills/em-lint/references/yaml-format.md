@@ -17,6 +17,7 @@ have more flexibility.
 8. [Field types](#field-types)
 9. [GWT reference](#gwt-reference)
 10. [Validation rules tooling enforces](#validation-rules-tooling-enforces)
+11. [Actor registry](#actor-registry)
 
 ---
 
@@ -47,7 +48,7 @@ Any other top-level key produces a parser warning. Two keys are **hard errors**:
 screen:
   type: user           # 'user' | 'system' (required)
   name: Sign Up        # optional display label; defaults to "Screen" / "Processor"
-  actors:              # optional: actor names associated with this screen (user type only)
+  actors:              # optional: actor IDs associated with this screen (user type only)
     - Customer
   reads:               # optional: query names this screen consults
     - ExistingUserByEmail
@@ -440,3 +441,25 @@ Parser warnings (non-fatal):
 
 Cross-slice `from_events` references (events produced in another slice) are
 **not** parser errors — the plugin resolves them interactively at import time.
+
+## Actor registry
+
+emviz reads an optional `<actors_file>`, which defaults to `<event_model_dir>/actors.yaml`.
+
+```yaml
+actors:
+  Customer:
+    name: Customer
+    color: "#2563EB"
+  Support:
+    name: Support team
+    color: "#7C3AED"
+```
+
+Each map key is a stable, case-sensitive actor ID. IDs must be nonempty strings without surrounding whitespace. Each value is a mapping. The optional `name` is a nonempty display string and defaults to the ID. The optional `color` is a quoted six-digit hex string. Omitted colors use a stable palette.
+
+User screens reference these IDs with `screen.actors: [Customer, Support]`. Actor definitions do not create graph nodes or change the meaning of command, event, or query colors. System screens remain actor-free.
+
+When the registry exists, every referenced actor must be defined there. Register an actor before adding a new reference. An empty registry does not permit undeclared IDs. Invalid definitions and references produce emviz A1 findings; unresolved IDs remain visible with fallback colors.
+
+When the file is absent, legacy actor strings remain valid. emviz derives actor display entries from user screens. Adding a registry is optional and does not require renaming existing IDs.

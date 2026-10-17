@@ -129,6 +129,44 @@ Node IDs can change when names collide. Feedback captures the current reference,
 
 See the [CLI command reference](packages/cli/README.md) for session commands, limits, and cleanup.
 
+## Actors
+
+Define optional actor names and colors in `event-model/actors.yaml`:
+
+```yaml
+actors:
+  Visitor:
+    name: Visitor
+    color: "#2563EB"
+  Support:
+    name: Support team
+    color: "#7C3AED"
+```
+
+Reference the IDs in existing user screens. A screen can have several actors:
+
+```yaml
+slice: Register Customer
+screen:
+  type: user
+  name: Sign Up
+  actors: [Visitor, Support]
+  reads: [ExistingCustomerForRegistration]
+  executes: [RegisterCustomer]
+```
+
+Actor IDs are case-sensitive, nonempty strings without surrounding whitespace. Names are optional and default to the ID. Colors are optional, quoted six-digit hex values. Missing colors use a stable palette based on the ID. Colors identify tags; node fills keep their modeling meaning.
+
+Without a registry file, existing `screen.actors` values remain valid and supply the actor list. With a registry file, undeclared references produce validation findings and still display their IDs. Invalid names, colors, IDs, duplicate references, and malformed registries also produce findings. System screens cannot declare actors.
+
+Use **Actors** in the toolbar to select one or more actors. Selections match any selected actor. **Unassigned screens** selects user screens without actors. Clear the selection to restore the full graph.
+
+A matching screen retains its complete slice, GWT cases, and connected events. Directly adjacent system slices remain visible as **Related** context. Context expansion stops after one system slice; it does not follow an entire automation chain or assign user actors to processors. Existing story and diff restrictions still apply. Filtering keeps node positions unchanged.
+
+Diff views match both old and new actor references. Actor name or color edits mark affected screens as changed, and old versions retain their original tags. Standalone HTML includes the actor metadata and filter controls.
+
+To place the registry elsewhere, set `paths.actors_file` in `.event-modeling/config.yaml`. The default follows `paths.event_model_dir`. Keep the file inside the project directory.
+
 ## Diff View
 
 `emviz diff` opens the normal canvas with diff metadata layered onto the graph. Node fills keep their semantic colors. Added nodes have green outlines and badges, changed nodes have amber outlines and badges, and removed nodes are dashed red ghosts. Edge colors show the same change statuses.
@@ -150,6 +188,7 @@ The left panel summarizes changed nodes and provides filters for added, removed,
 
 event-model/
   events.yaml
+  actors.yaml     # optional
   stories/
     *.yaml
   features/

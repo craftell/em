@@ -1,3 +1,5 @@
+export type ActorDefinition = { id: string; name: string; color: string };
+
 export type GraphNodeType = "story" | "slice" | "screen" | "processor" | "command" | "event" | "query" | "gwt";
 
 export type GwtItemRef = {
@@ -15,6 +17,7 @@ export type ProjectNode = {
   sourcePath?: string;
   sourceName?: string;
   actors?: string[];
+  actorDefinitions?: ActorDefinition[];
   screenType?: "user" | "system";
   fields?: string;
   description?: string;
@@ -64,6 +67,7 @@ export type ProjectConfig = {
     featuresDir: string;
     sliceExtension: string;
     eventsFile: string;
+    actorsFile?: string;
     storiesDir: string;
   };
 };
@@ -78,6 +82,7 @@ export type EventModelProject = {
   root: string;
   config: ProjectConfig;
   events: ProjectEvent[];
+  actors?: ActorDefinition[];
   stories: ProjectStory[];
   slices: ProjectSlice[];
   nodes: ProjectNode[];

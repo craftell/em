@@ -23,6 +23,7 @@ paths:
   features_dir: src/features          # parent of <story-slug>/<slice-slug>/
   slice_extension: .slice.yaml        # extension for slice files
   events_file: event-model/events.yaml
+  actors_file: event-model/actors.yaml # optional actor registry
   stories_dir: event-model/stories
 
 # Optional. Free-form notes the user can add. The skill does not interpret these.
@@ -40,9 +41,10 @@ When a key is absent, the skill applies these defaults:
 | `paths.features_dir` | `src/features` |
 | `paths.slice_extension` | `.slice.yaml` |
 | `paths.events_file` | `<event_model_dir>/events.yaml` |
+| `paths.actors_file` | `<event_model_dir>/actors.yaml` |
 | `paths.stories_dir` | `<event_model_dir>/stories` |
 
-`events_file` and `stories_dir` derive from `event_model_dir` unless the user
+`events_file`, `actors_file`, and `stories_dir` derive from `event_model_dir` unless the user
 overrides them. So in most projects, customising `event_model_dir` is enough.
 
 `language` has no default — the skill must ask on first run.
@@ -73,6 +75,7 @@ When generating files, always compose paths through this config:
 - Slice file:
   `<features_dir>/<story-slug>/<slice-slug>/<slice-slug><slice_extension>`
 - Events registry: `<events_file>`
+- Optional actor registry: `<actors_file>`
 - Story file: `<stories_dir>/<story-slug>.yaml`
 
 `<story-slug>` and `<slice-slug>` are kebab-case ASCII derived from the human

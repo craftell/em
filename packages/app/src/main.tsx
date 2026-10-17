@@ -17,6 +17,7 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
+import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
 import { FeedbackComposer, FeedbackSessionBar, useFeedbackSession, type SessionController } from "./feedback";
 import { connectionsAfter, connectionsBefore, feedbackDraftKey, previousNodeFor, resolveSelection, selectionForNode, updateFeedbackDraft, type FeedbackDrafts, type FeedbackView, type NodeSelection } from "./feedbackState";
 import type { EventModelProject, FieldFlow, GraphDiff, GraphDiffStatus, ProjectNode, ValidationFinding, ValidationReport } from "./types";
@@ -40,6 +41,7 @@ type CustomNodeData = {
   projectNode: ProjectNode;
   selected: boolean;
   connected: boolean;
+  actorRelated?: boolean;
   diffStatus?: GraphDiffStatus;
   scenarios?: ProjectNode[];
   scenarioStatus?: Record<string, GraphDiffStatus>;
@@ -104,6 +106,17 @@ function GwtSummary({ nodeData }: { nodeData: CustomNodeData }) {
   );
 }
 
+function ActorChips({ node }: { node: ProjectNode }) {
+  const actors = screenActors(node);
+  if (actors.length === 0) return null;
+  return <div className="chips actor-chips nodrag nopan nowheel" aria-label="Actors">
+    {actors.map((actor) => <span className="actor-chip" data-actor-id={actor.id} key={actor.id} title={actor.name + " (" + actor.id + ")"} style={{ borderColor: actor.color }}>
+      <i className="actor-swatch" aria-hidden="true" style={{ backgroundColor: actor.color }} />
+      <span className="actor-name">{actor.name}</span>
+    </span>)}
+  </div>;
+}
+
 function EventModelNode({ data }: NodeProps) {
   const nodeData = data as CustomNodeData;
   const node = nodeData.projectNode;
@@ -116,9 +129,7 @@ function EventModelNode({ data }: NodeProps) {
       {diffBadge}
       <div className="node-type">{node.type}</div>
       <div className="node-label">{node.label}</div>
-      {node.actors && node.actors.length > 0 ? (
-        <div className="chips">{node.actors.map((actor) => <span key={actor}>{actor}</span>)}</div>
-      ) : null}
+      <ActorChips node={node} />
     </div>
   );
 }
@@ -129,7 +140,7 @@ function GroupNode({ data }: NodeProps) {
   return (
     <div className={`group-node group-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
       {nodeData.diffStatus && nodeData.diffStatus !== "unchanged" ? <div className={`diff-badge diff-badge-${nodeData.diffStatus}`}>{nodeData.diffStatus}</div> : null}
-      <div className="group-title">{node.label}</div>
+      <div className="group-title">{node.label}{node.type === "slice" && nodeData.actorRelated ? <span className="actor-related-badge">Related</span> : null}</div>
       {node.description ? <div className="group-description">{node.description}</div> : null}
     </div>
   );
@@ -656,6 +667,7 @@ function SourcePanel({
         <p className="muted">YAML below is the source slice, not an individual scenario excerpt.</p>
       </section> : null}
       <div className="meta-row"><span>Type</span><strong>{selectedNode.type}</strong></div>
+      <ActorChips node={selectedNode} />
       <div className="meta-row"><span>Reference</span><code>{reference}</code></div>
       {selectedNode.sourcePath ? <div className="meta-row"><span>Source</span><code>{selectedNode.sourcePath}</code></div> : null}
       <details className="copy-section">
@@ -837,6 +849,8 @@ function FlowWorkspace() {
   const [report, setReport] = useState<ValidationReport>();
   const [diff, setDiff] = useState<GraphDiff>();
   const [diffFilter, setDiffFilter] = useState<DiffFilter>("all");
+  const [actorFilter, setActorFilter] = useState<ActorFilter>({ actorIds: [], includeUnassigned: false });
+  const actorProjectRoot = useRef<string | undefined>(undefined);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "import">("loading");
   const [sourceMode, setSourceMode] = useState<"remote" | "local">("remote");
   const [importError, setImportError] = useState<string>();
@@ -904,6 +918,7 @@ function FlowWorkspace() {
     if (appliedSnapshot.current && appliedSnapshot.current.sessionId !== snapshot.sessionId) {
       setSelection(undefined);
       setGwtListSelection(undefined);
+      setActorFilter({ actorIds: [], includeUnassigned: false });
       setBackStack([]);
       setForwardStack([]);
       setSelectedFieldName(undefined);
@@ -916,6 +931,16 @@ function FlowWorkspace() {
     setHoveredEdgeId(undefined);
     if (firstSnapshot) window.setTimeout(() => void fitView({ padding: 0.18, duration: 300 }), 50);
   }, [fitView, session.snapshot, session.snapshotView, snapshotKey, view]);
+
+  const availableActors = useMemo(() => project ? actorOptions(project, diff?.previousNodes) : [], [project, diff?.previousNodes]);
+  const hasUnassigned = Boolean(project?.nodes.some((node) => node.type === "screen" && !node.actors?.length) ||
+    Object.values(diff?.previousNodes ?? {}).some((node) => node.type === "screen" && !node.actors?.length));
+  useEffect(() => {
+    if (!project) return;
+    const newRoot = actorProjectRoot.current !== project.root;
+    actorProjectRoot.current = project.root;
+    setActorFilter((current) => newRoot ? { actorIds: [], includeUnassigned: false } : pruneActorFilter(project, current, diff?.previousNodes));
+  }, [project, diff?.previousNodes]);
 
   useEffect(() => {
     if (!project) return;
@@ -958,9 +983,11 @@ function FlowWorkspace() {
       onSelectField: setSelectedFieldName,
       diffNodeStatus: diff?.nodeStatus,
       diffEdgeStatus: diff?.edgeStatus,
-      diffFilter
+      diffFilter,
+      actorFilter,
+      previousNodes: diff?.previousNodes
     }) : { nodes: [], edges: [] },
-    [diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
+    [actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
   );
   const searchResults = useMemo(() => {
     if (!project || search.trim().length < 2) return [];
@@ -1096,6 +1123,7 @@ function FlowWorkspace() {
       setDiff(undefined);
       setGwtListSelection(undefined);
       setDiffFilter("all");
+      setActorFilter({ actorIds: [], includeUnassigned: false });
       setSelection(undefined);
       setHoveredEdgeId(undefined);
       setSelectedFieldName(undefined);
@@ -1151,6 +1179,34 @@ function FlowWorkspace() {
             </div>
           ) : null}
         </div>
+        <details className="actor-filter" onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            event.currentTarget.open = false;
+            event.currentTarget.querySelector("summary")?.focus();
+          }
+        }}>
+          <summary>Actors · {actorFilter.actorIds.length + Number(actorFilter.includeUnassigned) || "All"}</summary>
+          <div className="actor-filter-popover">
+            <p>Match any selected actor. Related system steps stay visible.</p>
+            <div className="actor-filter-options" role="group" aria-label="Filter by actor">
+              {availableActors.map((actor) => <label key={actor.id}>
+                <input type="checkbox" aria-label={actor.name === actor.id ? actor.name : actor.name + " (" + actor.id + ")"} checked={actorFilter.actorIds.includes(actor.id)} onChange={(event) => {
+                  const checked = event.target.checked;
+                  setActorFilter((current) => ({ ...current, actorIds: checked ? [...current.actorIds, actor.id] : current.actorIds.filter((id) => id !== actor.id) }));
+                }} />
+                <i className="actor-swatch" aria-hidden="true" style={{ backgroundColor: actor.color }} />
+                <span>{actor.name}{actor.name !== actor.id ? <small>{actor.id}</small> : null}</span>
+              </label>)}
+              {hasUnassigned ? <label><input type="checkbox" aria-label="Unassigned screens" checked={actorFilter.includeUnassigned} onChange={(event) => {
+                const checked = event.target.checked;
+                setActorFilter((current) => ({ ...current, includeUnassigned: checked }));
+              }} /><span>Unassigned screens</span></label> : null}
+            </div>
+            <button type="button" disabled={actorFilter.actorIds.length === 0 && !actorFilter.includeUnassigned} onClick={() => setActorFilter({ actorIds: [], includeUnassigned: false })}>Clear actors</button>
+          </div>
+        </details>
         <div className="toolbar-menu">
           <button
             type="button"
@@ -1212,6 +1268,7 @@ function FlowWorkspace() {
         onClearPreview={clearPreviewConnection}
       />
       <main className="canvas" tabIndex={-1} aria-label="Event model diagram">
+        {(actorFilter.actorIds.length > 0 || actorFilter.includeUnassigned) && !flow.nodes.some((node) => !node.hidden && node.data.projectNode.type !== "story" && node.data.projectNode.type !== "slice") ? <div className="actor-empty" role="status">No screens match the selected actors and current filters.</div> : null}
         <GwtActions.Provider value={gwtActions}>
         <ReactFlow
           nodes={flow.nodes}

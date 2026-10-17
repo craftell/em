@@ -230,3 +230,60 @@ describe("toFlow field flow edge data", () => {
     });
   });
 });
+
+describe("actor filters in layout", () => {
+  it("keeps Slice contents and GWT summaries at their full-graph coordinates", () => {
+    const project = denseSliceProject();
+    for (const node of project.nodes) {
+      if (node.type !== "story" && node.type !== "event") node.sourcePath = project.slices[0].path;
+    }
+    project.nodes.find((node) => node.type === "screen")!.actors = ["customer"];
+    const full = toFlow(project);
+    const filtered = toFlow(project, "gwt_empty_checkout", { actorFilter: { actorIds: ["customer"], includeUnassigned: false } });
+    expect(filtered.nodes.map(({ id, position }) => ({ id, position }))).toEqual(full.nodes.map(({ id, position }) => ({ id, position })));
+    const summary = filtered.nodes.find((node) => node.id === "gwt_invalid_coupon")!;
+    expect(summary.hidden).toBe(false);
+    expect(summary.data.scenarios?.map((node) => node.id)).toEqual(["gwt_invalid_coupon", "gwt_empty_checkout"]);
+    expect(summary.data.selected).toBe(true);
+    expect(filtered.nodes.find((node) => node.id === "gwt_empty_checkout")?.hidden).toBe(true);
+  });
+
+  it("intersects actor, story and diff filters and drops every edge with a hidden endpoint", () => {
+    const project = denseSliceProject();
+    for (const node of project.nodes) {
+      if (node.type !== "story" && node.type !== "event") node.sourcePath = project.slices[0].path;
+    }
+    project.nodes.find((node) => node.type === "screen")!.actors = ["customer"];
+    const actorFilter = { actorIds: ["customer"], includeUnassigned: false };
+    const hiddenStory = toFlow(project, undefined, { actorFilter, scope: "story", focusedStory: "Other" });
+    expect(hiddenStory.nodes.filter((node) => !node.hidden && node.data.projectNode.type !== "story")).toEqual([]);
+    expect(hiddenStory.edges).toEqual([]);
+    const diff = toFlow(project, undefined, {
+      actorFilter,
+      diffFilter: "changed",
+      diffNodeStatus: { command_start_checkout: "changed", event_checkout_started: "changed", event_coupon_applied: "changed", gwt_empty_checkout: "changed" },
+      diffEdgeStatus: { command_event_start: "changed", command_event_coupon: "changed" }
+    });
+    expect(diff.edges.map((edge) => edge.id)).toEqual(["command_event_start"]);
+    const visibleIds = new Set(diff.nodes.filter((node) => !node.hidden).map((node) => node.id));
+    expect(diff.edges.every((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target))).toBe(true);
+    expect(diff.nodes.find((node) => node.id === "gwt_empty_checkout")?.hidden).toBe(false);
+    expect(diff.nodes.find((node) => node.id === "gwt_invalid_coupon")?.hidden).toBe(true);
+  });
+
+  it("retains an actor's previous diff membership without changing displayed metadata", () => {
+    const project = denseSliceProject();
+    for (const node of project.nodes) {
+      if (node.type !== "story" && node.type !== "event") node.sourcePath = project.slices[0].path;
+    }
+    const screen = project.nodes.find((node) => node.type === "screen")!;
+    screen.actors = ["new"];
+    screen.actorDefinitions = [{ id: "new", name: "New actor", color: "#abcdef" }];
+    const flow = toFlow(project, undefined, {
+      actorFilter: { actorIds: ["old"], includeUnassigned: false },
+      previousNodes: { [screen.id]: { ...screen, actors: ["old"], actorDefinitions: [{ id: "old", name: "Old actor", color: "#123456" }] } }
+    });
+    expect(flow.nodes.find((node) => node.id === screen.id)?.hidden).toBe(false);
+    expect(flow.nodes.find((node) => node.id === screen.id)?.data.projectNode.actorDefinitions).toEqual(screen.actorDefinitions);
+  });
+});

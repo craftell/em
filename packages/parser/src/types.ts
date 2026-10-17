@@ -1,5 +1,8 @@
 export type ScreenType = "user" | "system";
 
+export type ActorDefinition = { id: string; name: string; color: string };
+export type ActorIssue = { message: string; path: string };
+
 export type ModelConfig = {
   language?: string;
   paths: {
@@ -7,6 +10,7 @@ export type ModelConfig = {
     featuresDir: string;
     sliceExtension: string;
     eventsFile: string;
+    actorsFile?: string;
     storiesDir: string;
   };
 };
@@ -29,6 +33,7 @@ export type ScreenModel = {
   type: ScreenType;
   name?: string;
   actors: string[];
+  actorIssues?: string[];
   reads: string[];
   executes: string[];
 };
@@ -91,6 +96,7 @@ export type GraphNode = {
   sourcePath?: string;
   sourceName?: string;
   actors?: string[];
+  actorDefinitions?: ActorDefinition[];
   screenType?: ScreenType;
   fields?: string;
   description?: string;
@@ -120,6 +126,8 @@ export type EventModelProject = {
   root: string;
   config: ModelConfig;
   events: EventRegistryEntry[];
+  actors?: ActorDefinition[];
+  actorIssues?: ActorIssue[];
   stories: StoryModel[];
   slices: SliceModel[];
   nodes: GraphNode[];

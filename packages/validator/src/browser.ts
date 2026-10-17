@@ -129,7 +129,7 @@ function connectedComponentCount(project: EventModelProject): number {
 }
 
 export function validateEventModelProject(project: EventModelProject): ValidationReport {
-  const findings: ValidationFinding[] = [];
+  const findings: ValidationFinding[] = (project.actorIssues ?? []).map((issue) => finding("error", "A1", issue.message, issue.path));
   const eventNames = new Set(project.events.map((event) => event.name));
   const slicePaths = new Set(project.slices.map((slice) => slice.path));
   const produced = new Map<string, string[]>();

@@ -17,6 +17,8 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 - [Review session and turn changes](review-diffs.md) covers current files, fixed baselines, and frozen turn snapshots.
 - [Stop, resume, close, and export](session-lifecycle.md) covers lifecycle controls and read-only standalone files.
 
+- [Inspect actor tags and filtered flows](actors.md) covers registry metadata, OR selection, bounded system context, and frozen diff/export values. This journey is unexecuted.
+
 ## Proof reporting
 
 Record each entry point you exercised. The new script covers search selection, two feedback turns, diff review, stop, resume, close, and export. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.
