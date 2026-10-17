@@ -27,7 +27,7 @@ It is not a YAML editor. The canonical model stays in your Event Modeling files;
    - Copy YAML excerpts, connected context, or an edit-prompt scaffold.
 
 5. **Send feedback to your own agent**
-   - Start your LLM agent separately and connect it with the `em-feedback` skill.
+   - Start your LLM agent separately and use the `emviz` skill to open the viewer and receive feedback.
    - Select a node, send feedback, and review the agent's reply with current, session, and turn views.
    - The agent edits canonical YAML directly. The local server does not invoke an LLM or commit changes.
 
@@ -57,7 +57,7 @@ If `.event-modeling/graph.json` is missing, `emviz` creates it on first project-
 
 ## Companion Skills
 
-Install the companion skills before using the modeling, extraction, or linting workflows:
+Install the companion skills together before using the agent workflows:
 
 ```sh
 gh skill install craftell/em
@@ -68,7 +68,14 @@ The installed skills provide:
 1. `em-model` for creating canonical Event Modeling YAML.
 2. `em-extract` for extracting candidate models from code or an Understand Anything knowledge graph.
 3. `em-lint` for validating Event Modeling YAML.
-4. `em-feedback` for receiving browser feedback in an agent you start yourself.
+4. `emviz` for opening the viewer and keeping the active agent in a feedback loop.
+5. `em-feedback` as the existing entry point to the same workflow.
+
+The distributable skills live under `skills/`. Ask your running agent to use
+`emviz`, or invoke `/emviz` if your agent supports slash commands. Install all
+companion skills so modeling and validation references are available. Installing
+skills does not install the CLI. The launcher uses a project-local CLI or
+`npx emviz@0.4.0` when package execution is permitted.
 
 ## Usage
 
@@ -117,9 +124,21 @@ The installed skills provide:
 
 ## Work with an external agent
 
-Start your preferred LLM agent in the project directory. Ask it to use the [em-feedback skill](skills/em-feedback/SKILL.md).
+Start your preferred LLM agent in the project directory. Ask it to use the [emviz skill](skills/emviz/SKILL.md), for example:
 
-The agent runs `emviz open .` and gives you the returned local URL. Open that URL, select a node, and send a message from **Node feedback**. The agent receives the selected node's context, edits the YAML files, and replies. It then waits for your next message.
+```text
+Use emviz to open this project's Event Model and keep handling my browser feedback.
+```
+
+In this repository, the same request opens emviz's own Event Model.
+
+The agent runs `emviz open .` and gives you the returned local URL. Open that URL, select a node, and send a message from **Node feedback**. The agent receives the selected node's context, edits the YAML files, and replies. It replies before polling for your next message. Each idle poll lasts up to 25
+seconds; a timeout starts another poll.
+
+The viewer runs as a detached local server. The LLM must remain active to read
+requests and make edits. A skill file cannot wake a finished or suspended agent.
+If your agent cannot continue, it must report that monitoring stopped. Resume the
+skill in that agent to continue with the existing session.
 
 Use **Current** to inspect files on disk, **Session diff** to compare with the fixed session baseline, and **Turn diff** to review the most recent completed request. A turn diff includes every file change between claim and reply, including concurrent manual edits. It does not identify who made each change.
 
@@ -288,7 +307,8 @@ skills/
   em-model/    # Creates Event Modeling YAML
   em-extract/  # Extracts candidates from code or an Understand Anything graph
   em-lint/     # Validates Event Modeling YAML
-  em-feedback/ # Connects a user-started agent to browser feedback
+  emviz/       # Opens the viewer and runs the agent feedback loop
+  em-feedback/ # Compatibility entry point for the emviz workflow
 ```
 
 ## References

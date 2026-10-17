@@ -10,6 +10,7 @@ Severity legend: **E** = error, **W** = warning, **I** = info.
 ## Contents
 
 - [Config & registry](#config--registry) — C1–C4
+- [Actors](#actors) - A1
 - [Stories](#stories) — S1–S4
 - [Slice schema](#slice-schema) — L1–L9
 - [Within-slice references](#within-slice-references) — W1–W2
@@ -62,6 +63,30 @@ its shape.
 
 **Finding**: Event `<name>` in `events.yaml` has no `fields`. Add the field
 shape (multi-line string).
+
+## Actors
+
+### A1 - actor definitions and user-screen references are valid (E)
+
+Read the optional configured `actors_file`. An absent registry permits legacy
+actor IDs on user screens. A present registry, including `actors: {}`, requires
+every referenced ID to be declared.
+
+Check that the registry parses and contains an `actors` mapping. Reject duplicate
+YAML keys, empty or padded IDs, non-mapping definitions, empty display names, and
+colors other than quoted six-digit hex strings. Names and colors are optional.
+
+Check that each user screen's `actors` value is an array of unique, nonempty,
+case-sensitive strings without surrounding whitespace. Report undeclared IDs at
+the slice path and malformed definitions at the configured registry path.
+Report actors on system screens under L5, not as user-actor A1 findings.
+
+**Finding**: `<slice-path>` references undefined actor `<id>`. Define the actor
+in `<actors_file>` or correct the reference.
+
+Do not add a registry merely to fix a missing-file warning. A missing actor
+registry is valid. Invalid or unresolved entries can still appear in the viewer
+with fallback names and colors; visibility does not mean validation passed.
 
 ## Stories
 

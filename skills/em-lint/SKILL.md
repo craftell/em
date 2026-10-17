@@ -27,6 +27,7 @@ Read these references as needed:
 4. Resolve configured/default paths.
 5. Read:
    - `events.yaml`
+   - the optional configured actor registry, when present
    - `stories/*.yaml`
    - story-referenced slices
    - all `**/*<slice_extension>` files outside ignored directories
@@ -40,7 +41,7 @@ screen reads queries <- from_events <- events <- produces <- commands <- execute
 
 Run the full check set from `references/checks.md`:
 
-- config and registry checks
+- config, event registry, and actor registry checks
 - story checks
 - slice schema checks
 - within-slice references
@@ -83,3 +84,7 @@ Return a Markdown report inline unless the user asks for a file:
 
 Always include file paths, and line numbers when available. If there are no
 errors or warnings, say so clearly.
+
+Use the `emviz` skill for interactive review of findings. `em-lint` is an agent
+skill, not an emviz CLI subcommand. Do not claim a validator command ran when the
+report came from manual inspection.
