@@ -226,6 +226,11 @@ function isBatchItem(value: unknown): value is FeedbackBatchItem {
     typeof value.message === "string" && Boolean(value.message.trim()) && value.message.length <= FEEDBACK_MESSAGE_LIMIT;
 }
 
+function isQueueItem(value: unknown): value is FeedbackQueueItem {
+  return isRecord(value) && typeof value.sessionId === "string" &&
+    typeof value.projectRoot === "string" && isIdentity(value.identity) && isBatchItem(value);
+}
+
 const recoveryWarning = "Some saved feedback could not be recovered. A previous send may already have arrived. The original saved data has been kept. Review the agent history before replacing the damaged saved copy and sending again.";
 
 function damagedFeedbackWorkspace(): FeedbackWorkspace {
@@ -244,7 +249,7 @@ export function restoreFeedbackWorkspace(serialized: string | null): FeedbackWor
     }
     const items: FeedbackQueueItem[] = [];
     for (const item of value.queue.items) {
-      if (!isBatchItem(item) || !isRecord(item) || typeof item.sessionId !== "string" || typeof item.projectRoot !== "string" || !isIdentity(item.identity)) continue;
+      if (!isQueueItem(item)) continue;
       if (items.some((existing) => existing.id === item.id)) continue;
       items.push({
         id: item.id, sessionId: item.sessionId, projectRoot: item.projectRoot, nodeId: item.nodeId, reference: item.reference,
