@@ -1,11 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { loadEventModelProjectFromFiles, findProjectRoot, parseConfig, type EventModelProject, type ModelConfig } from "@emviz/parser";
 import { diffEventModelProjects, type GraphSidecar } from "@emviz/graph";
 import { validateEventModelProject } from "@emviz/validator";
+import { validToken } from "./network.js";
+export { trustedRequest, validToken } from "./network.js";
 
 export class FeedbackError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -364,22 +366,6 @@ export class FeedbackSession {
     if (this.state.status !== "stopped") throw new FeedbackError(409, "Session is already running.");
     this.state = { status: "idle" };
   }
-}
-
-export function trustedRequest(req: IncomingMessage, port: number): boolean {
-  const allowed = new Set(["localhost:" + port, "127.0.0.1:" + port]);
-  const host = req.headers.host;
-  if (!host || !allowed.has(host)) return false;
-  const origin = req.headers.origin;
-  return origin === undefined || origin === "http://" + host;
-}
-
-export function validToken(req: IncomingMessage, expected: string): boolean {
-  const token = req.headers["x-emviz-token"];
-  if (typeof token !== "string") return false;
-  const actual = Buffer.from(token);
-  const wanted = Buffer.from(expected);
-  return actual.length === wanted.length && timingSafeEqual(actual, wanted);
 }
 
 export async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {

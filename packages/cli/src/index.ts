@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -9,11 +10,9 @@ import { loadEventModelProject } from "@emviz/parser";
 import { materializeGitRef } from "./gitSources.js";
 import { diffEventModelProjects, readGraphSidecar, writeGraphSidecar, type GraphDiff } from "@emviz/graph";
 import { validateEventModelProject } from "@emviz/validator";
-import { FeedbackSession, handleFeedback, trustedRequest, readSnapshot } from "./feedback.js";
+import { FeedbackSession, handleFeedback, readSnapshot } from "./feedback.js";
+import { apiRequestAuthorized, isLoopbackHost, parseHostArgs, serverOrigin, trustedRequest } from "./network.js";
 import { openProject, runAgentCommand } from "./agent-cli.js";
-
-const args = process.argv.slice(2);
-const command = args[0];
 
 function resolveTarget(value: string | undefined): string {
   return path.resolve(process.cwd(), value ?? ".");
@@ -181,7 +180,7 @@ function serveApp(req: http.IncomingMessage, res: http.ServerResponse, appRoot: 
   serveFile(res, path.join(appRoot, "index.html"));
 }
 
-function listenWithFallback(server: http.Server, port: number): Promise<number> {
+function listenWithFallback(server: http.Server, port: number, host: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const tryListen = (nextPort: number) => {
       server.once("error", (error: NodeJS.ErrnoException) => {
@@ -192,7 +191,7 @@ function listenWithFallback(server: http.Server, port: number): Promise<number> 
         }
         reject(error);
       });
-      server.listen(nextPort, "127.0.0.1", () => {
+      server.listen(nextPort, host, () => {
         resolve((server.address() as AddressInfo).port);
       });
     };
@@ -201,7 +200,7 @@ function listenWithFallback(server: http.Server, port: number): Promise<number> 
   });
 }
 
-async function runServer(targetDir?: string, diffState?: DiffServerState): Promise<void> {
+async function runServer(host: string, targetDir?: string, diffState?: DiffServerState): Promise<void> {
   if (targetDir) {
     const initial = readSnapshot(targetDir);
     if (!initial.graphSidecar) {
@@ -212,6 +211,7 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
 
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "app");
   const feedback = targetDir ? new FeedbackSession(targetDir) : undefined;
+  const token = feedback?.token ?? randomUUID();
   let listeningPort = 0;
   const server = http.createServer((req, res) => {
     void respond(req, res).catch((error) => {
@@ -228,10 +228,16 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
     timer.unref();
   };
   const respond = async (req: http.IncomingMessage, res: http.ServerResponse): Promise<void> => {
-    if (!trustedRequest(req, listeningPort)) { sendText(res, 403, "Forbidden Host or Origin"); return; }
     res.setHeader("cache-control", "no-store");
+    res.setHeader("referrer-policy", "no-referrer");
+    if (!trustedRequest(req, listeningPort, host)) { sendText(res, 403, "Forbidden Host or Origin"); return; }
+    const url = new URL(req.url ?? "/", serverOrigin(host, listeningPort));
+    if (!apiRequestAuthorized(req, url.pathname, host, token)) {
+      res.statusCode = 403;
+      sendJson(res, { error: "Invalid session token. Open the complete viewerUrl printed by emviz in this browser." });
+      return;
+    }
     if (feedback && await handleFeedback(req, res, feedback, close)) return;
-    const url = new URL(req.url ?? "/", "http://localhost");
 
     if (req.method !== "GET" && req.method !== "HEAD") { sendText(res, 405, "Method not allowed"); return; }
 
@@ -278,17 +284,19 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
     serveApp(req, res, appRoot);
   };
 
-  const port = await listenWithFallback(server, 5173);
+  const port = await listenWithFallback(server, 5173, host);
   listeningPort = port;
-  const url = `http://127.0.0.1:${port}/`;
+  const url = serverOrigin(host, port) + "/";
+  const viewerUrl = isLoopbackHost(host) ? url : url + "#token=" + encodeURIComponent(token);
   if (feedback) {
-    const ready = { url, token: feedback.token, pid: process.pid, next_step: `Run emviz poll --url ${url} --token ${feedback.token} --agent <unique-agent-id> in your external agent.` };
+    const ready = { url, viewerUrl, token, pid: process.pid, next_step: `Run emviz poll --url ${url} --token ${token} --agent <unique-agent-id> in your external agent.` };
     if (process.send) process.send(ready);
     else console.log(JSON.stringify(ready));
   }
   process.once("SIGTERM", close);
   process.once("SIGINT", close);
-  console.log(`  ➜  Local:   http://localhost:${port}/`);
+  console.log(`  ➜  ${isLoopbackHost(host) ? "Local" : "Remote"}:   ${viewerUrl}`);
+  if (!isLoopbackHost(host)) console.warn("Remote access requires the complete viewerUrl. Treat that link and the token as secrets. HTTP is unencrypted; use a trusted private network such as Tailscale.");
   if (diffState) {
     console.log(`Diff: ${diffState.diff.base.label} -> ${diffState.diff.target.label}`);
   } else {
@@ -297,17 +305,22 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
 }
 
 async function main(): Promise<void> {
+  const rawArgs = process.argv.slice(2);
+  if (["poll", "reply", "stop", "close"].includes(rawArgs[0])) {
+    await runAgentCommand(rawArgs[0], rawArgs.slice(1));
+    return;
+  }
+  const { host, args, provided } = parseHostArgs(rawArgs);
+  const command = args[0];
+  if (provided && ["sync", "init", "poll", "reply", "stop", "close"].includes(command)) throw new Error("--host is only supported by server commands.");
   if (command === "open") {
-    if (args.length > 2) throw new Error("Usage: emviz open [project-dir]");
-    await openProject(fileURLToPath(import.meta.url), resolveTarget(args[1]));
+    if (args.length > 2) throw new Error("Usage: emviz open [project-dir] [--host <ip>]");
+    await openProject(fileURLToPath(import.meta.url), resolveTarget(args[1]), host);
     return;
   }
   if (command === "serve") {
-    await runServer(resolveTarget(args[1]));
-    return;
-  }
-  if (["poll", "reply", "stop", "close"].includes(command)) {
-    await runAgentCommand(command, args.slice(1));
+    if (args.length > 2) throw new Error("Usage: emviz serve [project-dir] [--host <ip>]");
+    await runServer(host, resolveTarget(args[1]));
     return;
   }
   if (command === "sync") {
@@ -324,24 +337,28 @@ async function main(): Promise<void> {
   if (command === "diff") {
     const diffArgs = parseDiffArgs(args.slice(1));
     const diffState = loadDiffServerState(diffArgs.base, diffArgs.target);
-    await runServer(undefined, diffState);
+    await runServer(host, undefined, diffState);
     return;
   }
 
   if (command === "--help" || command === "-h") {
-    console.log("Usage: emviz [project-dir]");
-    console.log("       emviz open [project-dir]");
+    console.log("Usage: emviz [project-dir] [--host <ip>]");
+    console.log("       emviz open [project-dir] [--host <ip>]");
+    console.log("       emviz serve [project-dir] [--host <ip>]");
     console.log("       emviz poll --url <url> --token <token> --agent <id>");
     console.log("       emviz reply <request-id> <text> --url <url> --token <token> --agent <id>");
     console.log("       emviz stop|close --url <url> --token <token>");
-     console.log("       emviz sync [project-dir]");
-    console.log("       emviz diff [base-ref-or-dir] [project-dir]");
-    console.log("       emviz diff --from <base-ref-or-dir> --to <project-dir>");
+    console.log("       emviz sync [project-dir]");
+    console.log("       emviz diff [base-ref-or-dir] [project-dir] [--host <ip>]");
+    console.log("       emviz diff --from <base-ref-or-dir> --to <project-dir> [--host <ip>]");
     console.log("       emviz init [project-dir]  (deprecated alias for sync)");
+    console.log("Default host: 127.0.0.1. Use a concrete IPv4 or IPv6 interface address. DNS names and wildcard binds are rejected.");
+    console.log("Remote browser access uses the printed viewerUrl. Agent commands use url and --token.");
     return;
   }
 
-  await runServer(command ? resolveTarget(command) : undefined);
+  if (args.length > 1 || command?.startsWith("-")) throw new Error("Usage: emviz [project-dir] [--host <ip>]");
+  await runServer(host, command ? resolveTarget(command) : undefined);
 }
 
 main().catch((error) => {
