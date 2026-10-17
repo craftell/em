@@ -1075,7 +1075,7 @@ pre {
   margin-top: 8px;
 }
 
-.chips span {
+.chips > span {
   padding: 3px 6px;
   border: 1px solid #cbd5e1;
   border-radius: 999px;
@@ -1572,3 +1572,20 @@ pre {
     top: var(--feedback-bottom, 220px);
   }
 }
+
+.actor-filter { position: relative; white-space: nowrap; }
+.actor-filter summary { padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; cursor: pointer; font-size: 12px; }
+.actor-filter summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.actor-filter-popover { position: absolute; top: calc(100% + 8px); right: 0; width: 270px; padding: 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #fff; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16); white-space: normal; }
+.actor-filter-popover p { margin: 0 0 8px; color: #64748b; font-size: 12px; }
+.actor-filter-options { display: grid; gap: 5px; max-height: min(360px, 55vh); overflow-y: auto; margin-bottom: 10px; }
+.actor-filter-options label { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; font-size: 13px; overflow-wrap: anywhere; }
+.actor-filter-options input { flex-shrink: 0; }
+.actor-filter-options small { display: block; color: #64748b; font-size: 11px; }
+.actor-swatch { display: inline-block; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; }
+.actor-chips { flex-wrap: nowrap; overflow-x: auto; }
+.actor-chip { display: inline-flex; flex-shrink: 0; align-items: center; gap: 5px; max-width: 150px; }
+.actor-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actor-related-badge { display: inline-block; margin-left: 8px; padding: 2px 5px; border: 1px solid #94a3b8; border-radius: 4px; color: #475569; background: #f8fafc; font-size: 10px; font-weight: 600; vertical-align: middle; }
+
+.actor-empty { position: absolute; top: 18px; left: 18px; z-index: 10; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #475569; font-size: 13px; }
