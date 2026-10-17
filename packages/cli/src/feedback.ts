@@ -161,8 +161,8 @@ function gitBaseline(snapshot: Snapshot): { project: EventModelProject; label: s
     const git = (args: string[]) => execFileSync("git", ["-C", root, ...args], { encoding: "utf8", maxBuffer: 8 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
     const commit = git(["rev-parse", "--verify", "HEAD^{commit}"]).trim();
     const repoRoot = git(["rev-parse", "--show-toplevel"]).trim();
-    const prefix = path.relative(repoRoot, root).split(path.sep).join("/");
-    const names = git(["ls-tree", "--full-tree", "-r", "-z", "--name-only", commit, "--", prefix || "."]).split("\0").filter(Boolean);
+    const prefix = path.relative(fs.realpathSync(repoRoot), fs.realpathSync(root)).split(path.sep).join("/");
+    const names = git(["-C", repoRoot, "ls-tree", "--full-tree", "-r", "-z", "--name-only", commit, "--", prefix || "."]).split("\0").filter(Boolean);
     const tracked = new Set(names.map((name) => prefix ? name.slice(prefix.length + 1) : name));
     const files = new Map<string, string>();
     let bytes = 0;
