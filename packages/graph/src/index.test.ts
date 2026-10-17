@@ -141,3 +141,23 @@ it("keeps GWT old bodies, repeated names, slice identity and removed ID collisio
   expect(result.project.nodes.at(-1)?.description).toBe("deleted body");
   expect(base.nodes[1].description).toBe("old second");
 });
+
+it("retains old content for every changed node and treats an edge label edit as a change", () => {
+  const base = loadEventModelProject(new URL("../../..", import.meta.url).pathname);
+  const target = structuredClone(base);
+  const event = target.nodes.find((node) => node.type === "event")!;
+  const old = base.nodes.find((node) => node.id === event.id)!;
+  event.fields = "changed: string";
+  const edge = target.edges[0];
+  const previousLabel = edge.label;
+  edge.label = "New connection label";
+  const result = diffEventModelProjects(base, target);
+  expect(result.diff.previousNodes?.[event.id]).toEqual(old);
+  expect(result.diff.nodeStatus[event.id]).toBe("changed");
+  expect(result.diff.edgeStatus[edge.id]).toBe("changed");
+  expect(result.diff.previousEdges?.[edge.id].label).toBe(previousLabel);
+  expect(result.diff.summary.edges.removed).toBe(0);
+  expect(result.diff.summary.edges.added).toBe(0);
+  event.fields = "mutated again";
+  expect(result.diff.previousNodes?.[event.id].fields).toBe(old.fields);
+});

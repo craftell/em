@@ -1361,3 +1361,214 @@ pre {
   overflow: hidden;
 }
 .gwt-scenario-status { flex-shrink: 0; font-size: 10px; }
+
+
+.em-node.diff-node-added,
+.group-node.diff-node-added {
+  outline: 3px solid #15803d;
+  outline-offset: 3px;
+}
+
+.em-node.diff-node-changed,
+.group-node.diff-node-changed {
+  outline: 3px solid #b45309;
+  outline-offset: 3px;
+}
+
+.em-node.diff-node-removed,
+.group-node.diff-node-removed {
+  border: 2px dashed #b91c1c;
+  opacity: 0.68;
+}
+
+.feedback-session {
+  position: fixed;
+  z-index: 15;
+  top: 76px;
+  left: 16px;
+  right: 16px;
+  padding: 10px 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.08);
+  font-size: 12px;
+}
+
+.feedback-session-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feedback-session p {
+  margin: 7px 0 0;
+}
+
+.feedback-state {
+  font-weight: 700;
+}
+
+.feedback-state-stopped,
+.feedback-warning {
+  color: #92400e;
+}
+
+.feedback-state-working,
+.feedback-state-queued {
+  color: #1d4ed8;
+}
+
+.feedback-state-completed {
+  color: #166534;
+}
+
+.feedback-baseline {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #64748b;
+}
+
+.feedback-note {
+  color: #64748b;
+}
+
+.feedback-error {
+  color: #b42318;
+  overflow-wrap: anywhere;
+}
+
+.feedback-history {
+  position: relative;
+  margin-left: auto;
+}
+
+.feedback-history summary {
+  cursor: pointer;
+  padding: 6px;
+}
+
+.feedback-history ol {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: min(400px, calc(100vw - 56px));
+  max-height: 45vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  margin: 4px 0 0;
+  padding: 14px 14px 14px 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.15);
+}
+
+.feedback-history li + li {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.feedback-history p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.feedback-reply {
+  padding: 8px;
+  background: #f0fdf4;
+  border-radius: 6px;
+}
+
+.feedback-composer {
+  margin-top: 14px;
+  padding: 12px 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.feedback-composer h3 {
+  margin: 0 0 10px;
+}
+
+.feedback-composer label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.feedback-composer textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 86px;
+  max-height: 300px;
+  padding: 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.feedback-composer textarea:disabled {
+  background: #f8fafc;
+}
+
+.feedback-composer textarea:focus-visible,
+.feedback-history summary:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.feedback-composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.has-feedback .panel-right,
+.has-feedback .diff-panel {
+  top: var(--feedback-bottom, 186px);
+}
+
+.has-feedback .canvas {
+  top: var(--feedback-bottom, 174px);
+}
+
+@media (max-width: 850px) {
+  .has-feedback .toolbar {
+    left: 16px;
+    right: 16px;
+    transform: none;
+  }
+
+  .has-feedback .model-summary span {
+    display: none;
+  }
+
+  .has-feedback .search-box {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .feedback-baseline {
+    display: none;
+  }
+
+  .has-feedback .panel-right,
+  .has-feedback .diff-panel {
+    top: var(--feedback-bottom, 232px);
+  }
+
+  .has-feedback .canvas {
+    top: var(--feedback-bottom, 220px);
+  }
+}

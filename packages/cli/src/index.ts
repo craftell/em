@@ -9,6 +9,8 @@ import { fileURLToPath } from "node:url";
 import { loadEventModelProject } from "@emviz/parser";
 import { diffEventModelProjects, readGraphSidecar, writeGraphSidecar, type GraphDiff } from "@emviz/graph";
 import { validateEventModelProject } from "@emviz/validator";
+import { FeedbackSession, handleFeedback, trustedRequest, readSnapshot } from "./feedback.js";
+import { openProject, runAgentCommand } from "./agent-cli.js";
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -26,14 +28,6 @@ function sendText(res: http.ServerResponse, statusCode: number, body: string): v
   res.statusCode = statusCode;
   res.setHeader("content-type", "text/plain; charset=utf-8");
   res.end(body);
-}
-
-function loadApiModel(targetDir: string): unknown {
-  const project = loadEventModelProject(targetDir);
-  return {
-    ...project,
-    graphSidecar: readGraphSidecar(project.root)
-  };
 }
 
 type DiffSource = {
@@ -165,14 +159,6 @@ async function runSync(targetDir: string): Promise<void> {
   printSyncResult(result);
 }
 
-function syncMissingGraphSidecar(targetDir: string): void {
-  const project = loadEventModelProject(targetDir);
-  if (readGraphSidecar(project.root)) return;
-
-  console.log("Missing .event-modeling/graph.json; running initial sync...");
-  printSyncResult(writeGraphSidecar(project));
-}
-
 const contentTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -241,11 +227,38 @@ function listenWithFallback(server: http.Server, port: number): Promise<number> 
 }
 
 async function runServer(targetDir?: string, diffState?: DiffServerState): Promise<void> {
-  if (targetDir) syncMissingGraphSidecar(targetDir);
+  if (targetDir) {
+    const initial = readSnapshot(targetDir);
+    if (!initial.graphSidecar) {
+      console.log("Missing .event-modeling/graph.json; running initial sync...");
+      printSyncResult(writeGraphSidecar(initial.project));
+    }
+  }
 
   const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "app");
+  const feedback = targetDir ? new FeedbackSession(targetDir) : undefined;
+  let listeningPort = 0;
   const server = http.createServer((req, res) => {
+    void respond(req, res).catch((error) => {
+      if (!res.headersSent) sendText(res, 500, error instanceof Error ? error.message : String(error));
+      else res.end();
+    });
+  });
+  server.requestTimeout = 10000;
+  const close = () => {
+    feedback?.stop();
+    server.close();
+    server.closeIdleConnections();
+    const timer = setTimeout(() => server.closeAllConnections(), 1000);
+    timer.unref();
+  };
+  const respond = async (req: http.IncomingMessage, res: http.ServerResponse): Promise<void> => {
+    if (!trustedRequest(req, listeningPort)) { sendText(res, 403, "Forbidden Host or Origin"); return; }
+    res.setHeader("cache-control", "no-store");
+    if (feedback && await handleFeedback(req, res, feedback, close)) return;
     const url = new URL(req.url ?? "/", "http://localhost");
+
+    if (req.method !== "GET" && req.method !== "HEAD") { sendText(res, 405, "Method not allowed"); return; }
 
     if (diffState && url.pathname === "/api/model") {
       sendJson(res, diffState.model);
@@ -264,7 +277,9 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
 
     if (targetDir && url.pathname === "/api/model") {
       try {
-        sendJson(res, loadApiModel(targetDir));
+        const snapshot = feedback!.snapshot("current");
+        if (snapshot.stale) res.statusCode = 422;
+        sendJson(res, snapshot.project);
       } catch (error) {
         res.statusCode = 500;
         sendJson(res, { error: error instanceof Error ? error.message : String(error) });
@@ -274,8 +289,9 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
 
     if (targetDir && url.pathname === "/api/validation") {
       try {
-        const project = loadEventModelProject(targetDir);
-        sendJson(res, validateEventModelProject(project));
+        const snapshot = feedback!.snapshot("current");
+        if (snapshot.stale) res.statusCode = 422;
+        sendJson(res, snapshot.validation);
       } catch (error) {
         res.statusCode = 500;
         sendJson(res, { error: error instanceof Error ? error.message : String(error) });
@@ -283,10 +299,20 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
       return;
     }
 
+    if (url.pathname.startsWith("/api/")) { sendText(res, 404, "Not found"); return; }
     serveApp(req, res, appRoot);
-  });
+  };
 
   const port = await listenWithFallback(server, 5173);
+  listeningPort = port;
+  const url = `http://127.0.0.1:${port}/`;
+  if (feedback) {
+    const ready = { url, token: feedback.token, pid: process.pid, next_step: `Run emviz poll --url ${url} --token ${feedback.token} --agent <unique-agent-id> in your external agent.` };
+    if (process.send) process.send(ready);
+    else console.log(JSON.stringify(ready));
+  }
+  process.once("SIGTERM", close);
+  process.once("SIGINT", close);
   console.log(`  ➜  Local:   http://localhost:${port}/`);
   if (diffState) {
     console.log(`Diff: ${diffState.diff.base.label} -> ${diffState.diff.target.label}`);
@@ -296,6 +322,19 @@ async function runServer(targetDir?: string, diffState?: DiffServerState): Promi
 }
 
 async function main(): Promise<void> {
+  if (command === "open") {
+    if (args.length > 2) throw new Error("Usage: emviz open [project-dir]");
+    await openProject(fileURLToPath(import.meta.url), resolveTarget(args[1]));
+    return;
+  }
+  if (command === "serve") {
+    await runServer(resolveTarget(args[1]));
+    return;
+  }
+  if (["poll", "reply", "stop", "close"].includes(command)) {
+    await runAgentCommand(command, args.slice(1));
+    return;
+  }
   if (command === "sync") {
     await runSync(resolveTarget(args[1]));
     return;
@@ -316,6 +355,10 @@ async function main(): Promise<void> {
 
   if (command === "--help" || command === "-h") {
     console.log("Usage: emviz [project-dir]");
+    console.log("       emviz open [project-dir]");
+    console.log("       emviz poll --url <url> --token <token> --agent <id>");
+    console.log("       emviz reply <request-id> <text> --url <url> --token <token> --agent <id>");
+    console.log("       emviz stop|close --url <url> --token <token>");
      console.log("       emviz sync [project-dir]");
     console.log("       emviz diff [base-ref-or-dir] [project-dir]");
     console.log("       emviz diff --from <base-ref-or-dir> --to <project-dir>");

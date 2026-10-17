@@ -45,6 +45,8 @@ export type GraphDiff = {
     label: string;
   };
   previousGwtNodes?: Record<string, GraphNode>;
+  previousNodes?: Record<string, GraphNode>;
+  previousEdges?: Record<string, GraphEdge>;
   nodeStatus: Record<string, GraphDiffStatus>;
   edgeStatus: Record<string, GraphDiffStatus>;
   summary: {
@@ -146,8 +148,7 @@ function edgeKey(edge: GraphEdge, nodeKeys: Map<string, string>): string {
   return stableJson({
     kind: edge.kind,
     source: nodeKeys.get(edge.source) ?? edge.source,
-    target: nodeKeys.get(edge.target) ?? edge.target,
-    label: edge.label
+    target: nodeKeys.get(edge.target) ?? edge.target
   });
 }
 
@@ -315,6 +316,8 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
   const targetNodesByKey = new Map(target.nodes.map((node) => [targetNodeKeysById.get(node.id)!, node]));
   const nodeStatus: Record<string, GraphDiffStatus> = {};
   const previousGwtNodes: Record<string, GraphNode> = {};
+  const previousNodes: Record<string, GraphNode> = {};
+  const previousEdges: Record<string, GraphEdge> = {};
   const mergedNodeIdByBaseId = new Map<string, string>();
 
   mergeRemovedModelContainers(merged, base);
@@ -327,7 +330,10 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
       continue;
     }
     nodeStatus[targetNode.id] = stableJson(comparableNode(baseNode)) === stableJson(comparableNode(targetNode)) ? "unchanged" : "changed";
-    if (targetNode.type === "gwt" && nodeStatus[targetNode.id] === "changed") previousGwtNodes[targetNode.id] = structuredClone(baseNode);
+    if (nodeStatus[targetNode.id] === "changed") {
+      previousNodes[targetNode.id] = structuredClone(baseNode);
+      if (targetNode.type === "gwt") previousGwtNodes[targetNode.id] = structuredClone(baseNode);
+    }
   }
 
   for (const baseNode of base.nodes) {
@@ -337,6 +343,7 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
     mergedNodeIdByBaseId.set(baseNode.id, id);
     merged.nodes.push({ ...baseNode, id });
     nodeStatus[id] = "removed";
+    previousNodes[id] = structuredClone(baseNode);
   }
 
   const baseEdgesByKey = new Map(base.edges.map((edge) => [edgeKey(edge, baseNodeKeysById), edge]));
@@ -354,6 +361,7 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
       stableJson(comparableEdge(baseEdge, baseNodeKeysById)) === stableJson(comparableEdge(targetEdge, targetNodeKeysById))
         ? "unchanged"
         : "changed";
+    if (edgeStatus[targetEdge.id] === "changed") previousEdges[targetEdge.id] = structuredClone(baseEdge);
   }
 
   for (const baseEdge of base.edges) {
@@ -364,6 +372,7 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
     const id = uniqueEdgeId(existingEdgeIds, baseEdge.id);
     merged.edges.push({ ...baseEdge, id, source, target: targetId });
     edgeStatus[id] = "removed";
+    previousEdges[id] = structuredClone(baseEdge);
   }
 
   return {
@@ -372,6 +381,8 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
       base: { label: labels.base ?? "base" },
       target: { label: labels.target ?? "target" },
       previousGwtNodes,
+      previousNodes,
+      previousEdges,
       nodeStatus,
       edgeStatus,
       summary: {
