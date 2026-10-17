@@ -842,7 +842,11 @@ function actorModel() {
   }
   for (const id of ["system", "system-next", "unassigned"]) {
     const path = id + ".yaml";
-    project.slices.push({ title: id, path, storyName: "First" });
+    project.slices.push({
+      title: id, path, storyName: "First",
+      screen: { type: id === "unassigned" ? "user" : "system", actors: [], reads: [], executes: [] },
+      commands: [], queries: [], gwt: [], raw: ""
+    });
     project.stories[0].slices.push(path);
     const shared = { sourcePath: path, sliceTitle: id, storyName: "First" };
     project.nodes.push(
