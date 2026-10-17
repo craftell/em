@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import fg from "fast-glob";
 import YAML from "yaml";
+import { loadActors, parseActorReferences } from "./actors.js";
+export { actorColor } from "./actors.js";
 import { buildGraph } from "./graph.js";
 import { findProjectRoot, readConfig } from "./config.js";
 import type {
@@ -144,7 +146,7 @@ function parseScreen(raw: RawSlice["screen"]): ScreenModel {
   return {
     type: raw?.type === "system" ? "system" : "user",
     name: typeof raw?.name === "string" ? raw.name : undefined,
-    actors: asStringArray(raw?.actors),
+    ...parseActorReferences(raw?.actors),
     reads: asStringArray(raw?.reads),
     executes: asStringArray(raw?.executes)
   };
@@ -191,7 +193,11 @@ export function loadEventModelProject(startDir: string): EventModelProject {
   const events = parseEvents(root, config.paths.eventsFile);
   const stories = parseStories(root, config.paths.storiesDir);
   const slices = parseSlices(root, stories, path.posix.join(config.paths.featuresDir, `**/*${config.paths.sliceExtension}`));
-  const projectWithoutGraph = { root, config, events, stories, slices };
+  const actorsPath = config.paths.actorsFile ?? path.posix.join(config.paths.eventModelDir, "actors.yaml");
+  const absoluteActorsPath = resolveProjectPath(root, actorsPath);
+  const actorsContent = fs.existsSync(absoluteActorsPath) ? fs.readFileSync(absoluteActorsPath, "utf8") : undefined;
+  const actorData = loadActors(actorsContent, actorsPath, slices);
+  const projectWithoutGraph = { root, config, events, stories, slices, ...actorData };
   const graph = buildGraph(projectWithoutGraph);
 
   return {

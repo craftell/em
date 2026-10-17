@@ -15,6 +15,7 @@ export type GraphSidecar = {
   };
   sources: {
     events: string;
+    actors?: string;
     stories: string[];
     slices: string[];
   };
@@ -135,6 +136,7 @@ function comparableNode(node: GraphNode): Record<string, unknown> {
     sliceTitle: node.sliceTitle,
     sourceName: node.sourceName,
     actors: node.actors,
+    actorDefinitions: node.actorDefinitions,
     screenType: node.screenType,
     fields: node.fields,
     description: node.description,
@@ -171,6 +173,8 @@ function cloneProject(project: EventModelProject): EventModelProject {
   return {
     ...project,
     events: project.events.map((event) => ({ ...event })),
+    actors: project.actors?.map((actor) => ({ ...actor })),
+    actorIssues: project.actorIssues?.map((issue) => ({ ...issue })),
     stories: project.stories.map((story) => ({ ...story, slices: [...story.slices] })),
     slices: project.slices.map((slice) => ({
       ...slice,
@@ -184,7 +188,7 @@ function cloneProject(project: EventModelProject): EventModelProject {
         then: [...scenario.then]
       }))
     })),
-    nodes: project.nodes.map((node) => ({ ...node })),
+    nodes: project.nodes.map((node) => structuredClone(node)),
     edges: project.edges.map((edge) => ({ ...edge }))
   };
 }
@@ -280,6 +284,7 @@ export function buildGraphSidecar(project: EventModelProject, existing?: GraphSi
     },
     sources: {
       events: project.config.paths.eventsFile,
+      actors: project.config.paths.actorsFile,
       stories: [`${project.config.paths.storiesDir}/**/*.yaml`],
       slices: [`${project.config.paths.featuresDir}/**/*${project.config.paths.sliceExtension}`]
     },
@@ -341,7 +346,7 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
     if (targetNodesByKey.has(key)) continue;
     const id = uniqueNodeId(existingNodeIds, baseNode.id);
     mergedNodeIdByBaseId.set(baseNode.id, id);
-    merged.nodes.push({ ...baseNode, id });
+    merged.nodes.push({ ...structuredClone(baseNode), id });
     nodeStatus[id] = "removed";
     previousNodes[id] = structuredClone(baseNode);
   }

@@ -10,6 +10,7 @@ type RawConfig = {
     features_dir?: string;
     slice_extension?: string;
     events_file?: string;
+    actors_file?: string;
     stories_dir?: string;
   };
 };
@@ -55,6 +56,7 @@ export function parseConfig(content: string): ModelConfig {
       featuresDir,
       sliceExtension,
       eventsFile: raw?.paths?.events_file ?? path.posix.join(eventModelDir, "events.yaml"),
+      actorsFile: raw?.paths?.actors_file ?? path.posix.join(eventModelDir, "actors.yaml"),
       storiesDir: raw?.paths?.stories_dir ?? path.posix.join(eventModelDir, "stories")
     }
   };

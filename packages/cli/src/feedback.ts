@@ -76,6 +76,7 @@ function normalizedConfig(root: string, text: string): ModelConfig {
     eventModelDir: sourceKey(root, config.paths.eventModelDir),
     featuresDir: sourceKey(root, config.paths.featuresDir),
     eventsFile: sourceKey(root, config.paths.eventsFile),
+    actorsFile: sourceKey(root, config.paths.actorsFile ?? path.posix.join(config.paths.eventModelDir, "actors.yaml")),
     storiesDir: sourceKey(root, config.paths.storiesDir)
   } };
 }
@@ -84,6 +85,7 @@ function parseFiles(root: string, files: Map<string, string>, config: ModelConfi
   const paths = config.paths;
   const normalized = JSON.stringify({ language: config.language, paths: {
     event_model_dir: paths.eventModelDir, features_dir: paths.featuresDir, events_file: paths.eventsFile,
+    actors_file: paths.actorsFile,
     stories_dir: paths.storiesDir, slice_extension: paths.sliceExtension
   } });
   return loadEventModelProjectFromFiles([...files].map(([name, content]) => ({
@@ -108,6 +110,7 @@ export function readSnapshot(target: string): Snapshot {
   read(".event-modeling/config.yaml");
   const config = normalizedConfig(root, files.get(".event-modeling/config.yaml")!);
   read(config.paths.eventsFile);
+  if (config.paths.actorsFile && sourceExists(root, config.paths.actorsFile)) read(config.paths.actorsFile);
   let visitedEntries = 0;
   const walk = (directory: string, recursive: boolean, extension: string, visited = new Set<string>()) => {
     const key = sourceKey(root, directory);
@@ -177,6 +180,7 @@ function gitBaseline(snapshot: Snapshot): { project: EventModelProject; label: s
     if (rawConfig === undefined) throw new Error("No model configuration at the baseline commit.");
     const config = normalizedConfig(root, rawConfig);
     read(config.paths.eventsFile);
+    if (config.paths.actorsFile) read(config.paths.actorsFile);
     for (const key of tracked) {
       const isStory = (path.posix.dirname(key) === "." ? "" : path.posix.dirname(key)) === config.paths.storiesDir && !path.posix.basename(key).startsWith(".") && key.endsWith(".yaml");
       const relative = config.paths.featuresDir ? key.slice(config.paths.featuresDir.length + 1) : key;
