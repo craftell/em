@@ -38,9 +38,27 @@ npx emviz@0.4.0 open "$PROJECT_DIR"
 ```
 
 Read the returned JSON. Retain `url`, `token`, and `pid` privately. Give the
-user only the URL and ask them to select a node and use **Node feedback**.
-The command exits after starting its detached loopback server. The first poll
-connects this agent. Do not claim that feedback is connected before polling.
+owner `viewerUrl` when present, otherwise `url`, and ask them to select a node
+and use **Node feedback**. Keep the clean `url` for all CLI commands.
+The command exits after starting its detached server. The default listener is
+loopback. The first poll connects this agent. Do not claim that feedback is
+connected before polling.
+
+Use `--host <IP>` only when the user explicitly requests remote access and the
+host permits it. Check the selected CLI's `--help` first. The pinned 0.4.0 release
+does not include this option; use a build that advertises `--host` rather than
+silently upgrading. Ask for the server machine's concrete Tailscale IP if unknown.
+Never guess that address or select all interfaces. Pass the requested address
+to `open`. Wildcards and DNS bind names are rejected.
+
+Explain that emviz uses HTTP and requires an encrypted private network such as
+Tailscale for remote use. Do not configure networking, firewall rules, or proxies.
+A remote `viewerUrl` contains a bearer capability in its fragment. Share it only
+with the owner through a private channel, under the host's secret-sharing rules.
+If those rules prohibit transmitting credentials, ask the owner to retrieve the
+viewer link from the local command output. Do not publish it to shared channels,
+tickets, screenshots, or logs. The browser removes the fragment and retains the
+capability for that tab. Restarting the server invalidates it.
 
 Choose one unique `AGENT_ID` for this agent process. Reuse it for poll and reply.
 Keep the connection values available across tool calls. Separate shells do not
@@ -152,4 +170,5 @@ Close only the server this agent opened. Never kill unrelated Node or emviz
 processes. Closing discards in-memory request history.
 
 Use the [CLI reference](https://github.com/craftell/em/blob/main/packages/cli/README.md)
-for limits. The CLI is loopback-only. Do not expose its server through a proxy.
+for limits. Keep the default loopback listener unless remote access was explicitly
+requested. Do not expose the server through a public proxy.
