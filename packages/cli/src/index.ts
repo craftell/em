@@ -2,11 +2,11 @@
 import fs from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { loadEventModelProject, parseConfig } from "@emviz/parser";
+import { loadEventModelProject } from "@emviz/parser";
+import { materializeGitRef } from "./gitSources.js";
 import { diffEventModelProjects, readGraphSidecar, writeGraphSidecar, type GraphDiff } from "@emviz/graph";
 import { validateEventModelProject } from "@emviz/validator";
 import { FeedbackSession, handleFeedback, trustedRequest, readSnapshot } from "./feedback.js";
@@ -51,48 +51,6 @@ function isGitRef(value: string): boolean {
   } catch {
     return false;
   }
-}
-
-function materializeGitRef(ref: string): string {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "emviz-diff-"));
-  const files = execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", ".event-modeling", "event-model"], {
-    cwd: process.cwd(),
-    encoding: "utf8"
-  })
-    .split("\n")
-    .filter(Boolean);
-
-  if (files.includes(".event-modeling/config.yaml")) {
-    const configText = execFileSync("git", ["show", `${ref}:.event-modeling/config.yaml`], {
-      cwd: process.cwd(), encoding: "utf8", maxBuffer: 20 * 1024 * 1024
-    });
-    const config = parseConfig(configText);
-    const actorsFile = path.posix.normalize(config.paths.actorsFile ?? path.posix.join(config.paths.eventModelDir, "actors.yaml"));
-    if (path.isAbsolute(actorsFile) || actorsFile === ".." || actorsFile.startsWith("../")) {
-      throw new Error("Actor registry must stay inside the project directory.");
-    }
-    if (!files.includes(actorsFile)) {
-      const tracked = execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", actorsFile], {
-        cwd: process.cwd(), encoding: "utf8"
-      }).trim();
-      if (tracked === actorsFile) files.push(actorsFile);
-    }
-  }
-
-  if (files.length === 0) throw new Error(`Git ref "${ref}" does not contain .event-modeling or event-model files.`);
-
-  for (const file of files) {
-    const content = execFileSync("git", ["show", `${ref}:${file}`], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      maxBuffer: 20 * 1024 * 1024
-    });
-    const outputPath = path.join(tempRoot, file);
-    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-    fs.writeFileSync(outputPath, content);
-  }
-
-  return tempRoot;
 }
 
 function loadDiffSource(value: string | undefined, fallback: string): DiffSource {

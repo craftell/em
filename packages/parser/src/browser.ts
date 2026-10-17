@@ -159,7 +159,7 @@ export function loadEventModelProjectFromFiles(files: InMemoryEventModelFile[], 
   const featuresDir = configRaw?.paths?.features_dir ?? "event-model/features";
   const sliceExtension = configRaw?.paths?.slice_extension ?? ".slice.yaml";
   const eventsFile = configRaw?.paths?.events_file ?? `${eventModelDir}/events.yaml`;
-  const actorsFile = configRaw?.paths?.actors_file ?? `${eventModelDir}/actors.yaml`;
+  const actorsFile = normalizeRelativePath(configRaw?.paths?.actors_file ?? `${eventModelDir}/actors.yaml`);
   const storiesDir = configRaw?.paths?.stories_dir ?? `${eventModelDir}/stories`;
   const eventsContent = normalizedFiles.get(eventsFile);
   if (eventsContent === undefined) throw new Error(`Missing events file: ${eventsFile}`);
