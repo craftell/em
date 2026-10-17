@@ -67,6 +67,8 @@ For the existing GWT and standalone regressions, run:
 pnpm --filter @emviz/app test:browser
 ```
 
+The [actor journey](features/actors.md) adds registry tags, multi-selection, bounded system context, and historical metadata checks. Its browser recording and screenshots remain unexecuted for the actor change.
+
 That older suite uses intercepted API fixtures for many checks. Its pass does not replace the new real-server feedback journey.
 
 ## Evidence
