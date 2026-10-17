@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -12,6 +13,17 @@ const connections: { url: string; token: string }[] = [];
 
 async function cli(...args: string[]) {
   return execute(process.execPath, [entry, ...args], { timeout: 20000 });
+}
+
+function modelStatus(url: string, headers: Record<string, string>): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const request = http.get(new URL("/api/model", url), { headers }, (response) => {
+      response.resume();
+      resolve(response.statusCode ?? 0);
+    });
+    request.once("error", reject);
+    request.setTimeout(5000, () => request.destroy(new Error("HTTP test request timed out.")));
+  });
 }
 
 function fixture() {
@@ -61,8 +73,8 @@ describe("built CLI listener lifecycle", () => {
     expect(new URL(ready.url).hostname).toBe("127.0.0.2");
     expect(ready.viewerUrl).toBe(ready.url);
     expect((await fetch(new URL("/api/model", ready.url))).status).toBe(200);
-    expect((await fetch(new URL("/api/model", ready.url), { headers: { Host: "localhost:" + new URL(ready.url).port } })).status).toBe(403);
-    expect((await fetch(new URL("/api/model", ready.url), { headers: { Origin: "http://evil.example" } })).status).toBe(403);
+    expect(await modelStatus(ready.url, { Host: "localhost:" + new URL(ready.url).port })).toBe(403);
+    expect(await modelStatus(ready.url, { Origin: "http://evil.example" })).toBe(403);
     const stopped = await cli("stop", "--url", ready.url, "--token", ready.token);
     expect(JSON.parse(stopped.stdout).status).toBe("stopped");
   }, 30000);
