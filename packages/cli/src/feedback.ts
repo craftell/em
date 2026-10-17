@@ -19,9 +19,36 @@ type Snapshot = {
   validation: ReturnType<typeof validateEventModelProject>;
 };
 
+export type FeedbackItem = Readonly<{
+  id: string;
+  nodeId: string;
+  reference: string;
+  revision: string;
+  message: string;
+}>;
+
+type CapturedFeedbackItem = FeedbackItem & {
+  sourcePath?: string;
+  yaml: string;
+  context: string;
+};
+
+type BatchInput = {
+  clientBatchId: string;
+  items: FeedbackItem[];
+};
+
+type BatchReceipt = {
+  fingerprint: string;
+  id: string;
+  createdAt: number;
+};
+
 export type FeedbackRequest = {
   id: string;
   clientRequestId: string;
+  clientBatchId?: string;
+  items?: readonly FeedbackItem[];
   message: string;
   reference: string;
   nodeId: string;
@@ -32,6 +59,7 @@ export type FeedbackRequest = {
 
 type RequestContext = {
   request: FeedbackRequest;
+  items?: readonly CapturedFeedbackItem[];
   revision: string;
   sourcePath?: string;
   yaml: string;
@@ -201,6 +229,67 @@ function textField(value: unknown, name: string, max: number): string {
   return value;
 }
 
+function parseBatch(body: Record<string, unknown>): BatchInput {
+  const clientBatchId = textField(body.clientBatchId, "clientBatchId", 100);
+  if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 20) {
+    throw new FeedbackError(400, "A batch must contain 1 to 20 items.");
+  }
+  const ids = new Set<string>();
+  let messageLength = 0;
+  const items = body.items.map((value: unknown) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new FeedbackError(400, "Expected a feedback item.");
+    const item = value as Record<string, unknown>;
+    const parsed: FeedbackItem = {
+      id: textField(item.id, "item id", 100),
+      nodeId: textField(item.nodeId, "nodeId", 500),
+      reference: textField(item.reference, "reference", 1000),
+      revision: textField(item.revision, "revision", 100),
+      message: textField(item.message, "message", 4000)
+    };
+    if (ids.has(parsed.id)) throw new FeedbackError(400, "Batch item IDs must be unique.");
+    ids.add(parsed.id);
+    messageLength += parsed.message.length;
+    return parsed;
+  });
+  if (messageLength > 16000) throw new FeedbackError(413, "Batch messages exceed 16000 characters.");
+  return { clientBatchId, items };
+}
+
+function nodeIdentity(node: EventModelProject["nodes"][number]): string {
+  return JSON.stringify([node.type, node.sourcePath, node.sourceName, node.label, node.sliceTitle]);
+}
+
+function uniqueNodeIds(project: EventModelProject): Map<string, string | undefined> {
+  const ids = new Map<string, string | undefined>();
+  for (const node of project.nodes) {
+    const key = nodeIdentity(node);
+    ids.set(key, ids.has(key) ? undefined : node.id);
+  }
+  return ids;
+}
+
+function captureNode(snapshot: Snapshot, nodeId: string) {
+  const node = snapshot.project.nodes.find((item) => item.id === nodeId);
+  if (!node) throw new FeedbackError(409, "This element is no longer in the current model.");
+  const reference = "em://" + (snapshot.graphSidecar?.model.id ?? "event_model") + "/" + nodeId;
+  const yaml = (node.sourcePath && snapshot.files.get(node.sourcePath)) || node.raw || node.fields || node.description || node.label;
+  if (yaml.length > 64000) throw new FeedbackError(413, "Selected source exceeds 64000 characters.");
+  const related = snapshot.project.edges.filter((edge) => edge.source === nodeId || edge.target === nodeId);
+  const context = JSON.stringify({ node, validationFindings: snapshot.validation.findings.filter((finding) => finding.nodeId === nodeId || finding.path === node.sourcePath), connections: related.map((edge) => ({ ...edge, sourceNode: snapshot.project.nodes.find((item) => item.id === edge.source), targetNode: snapshot.project.nodes.find((item) => item.id === edge.target) })) });
+  if (context.length > 128000) throw new FeedbackError(413, "Connected context exceeds 128000 characters.");
+  return { reference, sourcePath: node.sourcePath, yaml, context };
+}
+
+function batchRequest(input: BatchInput, receipt: BatchReceipt): FeedbackRequest {
+  const first = input.items[0];
+  const message = "Batch feedback for " + input.items.length + " nodes. Address every item below before replying once.\n\n" +
+    input.items.map((item, index) => (index + 1) + ". " + item.reference + "\n" + item.message).join("\n\n");
+  return {
+    id: receipt.id, clientRequestId: input.clientBatchId, clientBatchId: input.clientBatchId,
+    items: input.items, message, nodeId: first.nodeId, reference: first.reference, createdAt: receipt.createdAt
+  };
+}
+
 export class FeedbackSession {
   readonly id = randomUUID();
   readonly token = randomUUID();
@@ -208,6 +297,7 @@ export class FeedbackSession {
   private baseline: ReturnType<typeof gitBaseline>;
   private state: RequestState = { status: "idle" };
   private history: FeedbackRequest[] = [];
+  private batchReceipts = new Map<string, BatchReceipt>();
   private lastSeen?: number;
   private error?: string;
   private waiter?: () => void;
@@ -250,8 +340,13 @@ export class FeedbackSession {
       project = result.project;
       diff = result.diff;
     }
+    const currentIds = uniqueNodeIds(this.current.project);
+    const currentNodeIds: Record<string, string> = Object.fromEntries(project.nodes.flatMap((node) => {
+      const id = currentIds.get(nodeIdentity(node));
+      return id === undefined || diff?.nodeStatus[node.id] === "removed" ? [] : [[node.id, id]];
+    }));
     return {
-      sessionId: this.id, token: this.token, revision: this.current.revision,
+      sessionId: this.id, token: this.token, revision: this.current.revision, currentNodeIds,
       project: { ...project, graphSidecar: displayed.graphSidecar },
       validation: displayed.validation, diff,
       baseline: { kind: this.baseline.kind, label: this.baseline.label },
@@ -270,6 +365,7 @@ export class FeedbackSession {
     const message = textField(body.message, "message", 4000);
     const nodeId = textField(body.nodeId, "nodeId", 500);
     const revision = textField(body.revision, "revision", 100);
+    if (this.batchReceipts.has(clientRequestId)) throw new FeedbackError(409, "Request ID already belongs to a batch.");
     const active = "context" in this.state ? this.state.context?.request : undefined;
     const known = active?.clientRequestId === clientRequestId ? active : this.history.find((item) => item.clientRequestId === clientRequestId);
     if (known?.clientRequestId === clientRequestId) {
@@ -280,18 +376,47 @@ export class FeedbackSession {
     if (this.state.status === "working" || this.state.status === "queued") throw new FeedbackError(409, "Finish or stop the active request first.");
     const snapshot = this.refresh();
     if (revision !== snapshot.revision) throw new FeedbackError(409, "Model changed. Refresh and select the element again.");
-    const node = snapshot.project.nodes.find((item) => item.id === nodeId);
-    if (!node) throw new FeedbackError(409, "This element is no longer in the current model.");
+    const captured = captureNode(snapshot, nodeId);
     const request: FeedbackRequest = {
-      id: randomUUID(), clientRequestId, message, nodeId, createdAt: Date.now(),
-      reference: "em://" + (snapshot.graphSidecar?.model.id ?? "event_model") + "/" + nodeId
+      id: randomUUID(), clientRequestId, message, nodeId, createdAt: Date.now(), reference: captured.reference
     };
-    const yaml = (node.sourcePath && snapshot.files.get(node.sourcePath)) || node.raw || node.fields || node.description || node.label;
-    if (yaml.length > 64000) throw new FeedbackError(413, "Selected source exceeds 64000 characters.");
-    const related = snapshot.project.edges.filter((edge) => edge.source === nodeId || edge.target === nodeId);
-    const context = JSON.stringify({ node, validationFindings: snapshot.validation.findings.filter((finding) => finding.nodeId === nodeId || finding.path === node.sourcePath), connections: related.map((edge) => ({ ...edge, sourceNode: snapshot.project.nodes.find((item) => item.id === edge.source), targetNode: snapshot.project.nodes.find((item) => item.id === edge.target) })) });
-    if (context.length > 128000) throw new FeedbackError(413, "Connected context exceeds 128000 characters.");
-    this.state = { status: "queued", context: { request, revision, sourcePath: node.sourcePath, yaml, context } };
+    this.state = { status: "queued", context: { request, revision, ...captured } };
+    this.waiter?.();
+    return request;
+  }
+
+  submitBatch(body: Record<string, unknown>): FeedbackRequest {
+    const input = parseBatch(body);
+    const fingerprint = createHash("sha256").update(JSON.stringify(input)).digest("hex");
+    const active = "context" in this.state ? this.state.context?.request : undefined;
+    const receipt = this.batchReceipts.get(input.clientBatchId);
+    if (receipt) {
+      if (receipt.fingerprint !== fingerprint) throw new FeedbackError(409, "Batch ID already used with different content.");
+      return active?.id === receipt.id ? active : this.history.find((item) => item.id === receipt.id) ?? batchRequest(input, receipt);
+    }
+    if (active?.clientRequestId === input.clientBatchId || this.history.some((item) => item.clientRequestId === input.clientBatchId)) {
+      throw new FeedbackError(409, "Batch ID already belongs to a request.");
+    }
+    if (this.state.status === "stopped") throw new FeedbackError(409, "Feedback is stopped.");
+    if (this.state.status === "working" || this.state.status === "queued") throw new FeedbackError(409, "Finish or stop the active request first.");
+    if (this.batchReceipts.size >= 1000) throw new FeedbackError(429, "This session has accepted 1000 batches. Restart the project server before sending another batch.");
+    const snapshot = this.refresh();
+    const currentIds = uniqueNodeIds(snapshot.project);
+    const items = input.items.map((item): CapturedFeedbackItem => {
+      if (item.revision !== snapshot.revision) throw new FeedbackError(409, "Model changed. Review and queue each element again.");
+      const captured = captureNode(snapshot, item.nodeId);
+      if (item.reference !== captured.reference) throw new FeedbackError(409, "An item reference does not match its current node.");
+      const node = snapshot.project.nodes.find((candidate) => candidate.id === item.nodeId)!;
+      if (currentIds.get(nodeIdentity(node)) !== node.id) throw new FeedbackError(409, "An item is ambiguous. Select a uniquely named current node.");
+      return { ...item, ...captured };
+    });
+    const context = JSON.stringify({ kind: "batch", revision: snapshot.revision, items });
+    if (Buffer.byteLength(context) > 1024 * 1024) throw new FeedbackError(413, "Batch captured context exceeds 1 MiB.");
+    const accepted = { fingerprint, id: randomUUID(), createdAt: Date.now() };
+    const request = batchRequest(input, accepted);
+    const yaml = items.map((item, index) => "# Item " + (index + 1) + " " + item.reference + "\n" + item.yaml).join("\n\n");
+    this.batchReceipts.set(input.clientBatchId, accepted);
+    this.state = { status: "queued", context: { request, items, revision: snapshot.revision, yaml, context } };
     this.waiter?.();
     return request;
   }
@@ -319,7 +444,7 @@ export class FeedbackSession {
       if (this.state.status === "queued") {
         const before = this.refresh();
         if (before.revision !== this.state.context.revision) {
-          this.archive({ ...this.state.context.request, reply: "Model changed before the agent started. Select the element and send again." });
+          this.archive({ ...this.state.context.request, reply: this.state.context.items ? "Model changed before the agent started. Review every item and send a new batch." : "Model changed before the agent started. Select the element and send again." });
           this.state = { status: "idle" };
           throw new FeedbackError(409, "Model changed before claim. Request cancelled.");
         }
@@ -327,7 +452,7 @@ export class FeedbackSession {
         this.state = { status: "working", context: this.state.context, agentId, before };
       }
       if (this.state.status === "working") {
-        return { status: "request", request: { ...this.state.context.request, sourcePath: this.state.context.sourcePath, yaml: this.state.context.yaml, context: this.state.context.context, projectRoot: this.current.project.root, revision: this.state.context.revision }, next_step: "Edit canonical YAML directly, validate it, then run emviz reply with this request ID and the same --url, --token, and --agent. Do not start a second request or commit/reset files automatically." };
+        return { status: "request", request: { ...this.state.context.request, ...(this.state.context.items ? { items: this.state.context.items } : {}), sourcePath: this.state.context.sourcePath, yaml: this.state.context.yaml, context: this.state.context.context, projectRoot: this.current.project.root, revision: this.state.context.revision }, next_step: (this.state.context.items ? "Apply all feedback items as one batch using their captured node references and context. Re-read current files before each edit without retargeting an item. Reply once after the whole batch. " : "") + "Edit canonical YAML directly, validate it, then run emviz reply with this request ID and the same --url, --token, and --agent. Do not start a second request or commit/reset files automatically." };
       }
       return { status: "timeout", next_step: "Run emviz poll again with the same --url, --token, and --agent. Wait in the foreground." };
     } finally { this.polling = false; }
@@ -382,7 +507,7 @@ export function validToken(req: IncomingMessage, expected: string): boolean {
   return actual.length === wanted.length && timingSafeEqual(actual, wanted);
 }
 
-export async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+export async function readJson(req: IncomingMessage, maxBytes = 32768): Promise<Record<string, unknown>> {
   if (req.headers["content-type"]?.split(";")[0] !== "application/json") throw new FeedbackError(415, "Use application/json.");
   const content = await new Promise<Buffer>((resolve, reject) => {
     let size = 0;
@@ -391,10 +516,10 @@ export async function readJson(req: IncomingMessage): Promise<Record<string, unk
     req.on("data", (chunk: Buffer) => {
       if (failed) return;
       size += chunk.length;
-      if (size > 32768) {
+      if (size > maxBytes) {
         failed = true;
         parts.length = 0;
-        reject(new FeedbackError(413, "Request exceeds 32 KiB."));
+        reject(new FeedbackError(413, "Request exceeds " + (maxBytes / 1024) + " KiB."));
       } else parts.push(chunk);
     });
     req.once("end", () => { if (!failed) resolve(Buffer.concat(parts)); });
@@ -428,9 +553,10 @@ export async function handleFeedback(req: IncomingMessage, res: ServerResponse, 
       return true;
     }
     if (req.method !== "POST") throw new FeedbackError(405, "Method not allowed.");
-    const body = await readJson(req);
+    const body = await readJson(req, url.pathname === "/api/feedback/batch" ? 128 * 1024 : 32768);
     switch (url.pathname) {
       case "/api/feedback/request": send(session.submit(body)); break;
+      case "/api/feedback/batch": send(session.submitBatch(body)); break;
       case "/api/feedback/reply": send({ request: session.reply(body), next_step: "Run emviz poll with the same connection options." }); break;
       case "/api/feedback/stop": session.stop(); send({ status: "stopped" }); break;
       case "/api/feedback/start": session.start(); send({ status: "idle" }); break;
