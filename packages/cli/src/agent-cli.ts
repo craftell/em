@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { parseHost } from "./network.js";
 
 type Connection = { url: URL; token: string; agent?: string; positional: string[] };
 
@@ -13,7 +14,8 @@ export function parseConnection(values: string[]): Connection {
     } else positional.push(value);
   }
   const url = new URL(options.get("--url") ?? "");
-  if (url.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(url.hostname) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) throw new Error("--url must be a loopback HTTP origin.");
+  if (url.protocol !== "http:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) throw new Error("--url must be an HTTP origin without credentials, path, query, or fragment. Use url, not viewerUrl.");
+  if (url.hostname !== "localhost") parseHost(url.hostname);
   const token = options.get("--token");
   if (!token) throw new Error("--token is required. Use the token printed by emviz open.");
   return { url, token, agent: options.get("--agent"), positional };
@@ -38,8 +40,9 @@ export async function runAgentCommand(command: string, values: string[]): Promis
   if (!response.ok) process.exitCode = 1;
 }
 
-export async function openProject(entry: string, target: string): Promise<void> {
-  const child = spawn(process.execPath, [entry, "serve", target], { detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"] });
+export async function openProject(entry: string, target: string, host = "127.0.0.1"): Promise<void> {
+  const address = parseHost(host);
+  const child = spawn(process.execPath, [entry, "serve", target, "--host", address], { detached: true, stdio: ["ignore", "ignore", "ignore", "ipc"] });
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => { child.kill(); reject(new Error("Project server did not become ready within 15 seconds.")); }, 15000);
     child.once("error", (error) => { clearTimeout(timer); reject(error); });

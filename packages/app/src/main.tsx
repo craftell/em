@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./styles.css";
+import { apiFetch } from "./api";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
 import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
@@ -892,9 +893,9 @@ function FlowWorkspace() {
     if (sourceMode === "local" || session.connection !== "unavailable") return;
     let cancelled = false;
     void Promise.all([
-      fetch("/api/model").then((res) => res.json()),
-      fetch("/api/validation").then((res) => res.ok ? res.json() : undefined).catch(() => undefined),
-      fetch("/api/diff").then((res) => res.ok ? res.json() : undefined).catch(() => undefined)
+      apiFetch("/api/model").then((res) => res.json()),
+      apiFetch("/api/validation").then((res) => res.ok ? res.json() : undefined).catch(() => undefined),
+      apiFetch("/api/diff").then((res) => res.ok ? res.json() : undefined).catch(() => undefined)
     ]).then(([model, validation, diffPayload]) => {
       if (cancelled) return;
       if (!model || !Array.isArray(model.nodes) || !Array.isArray(model.edges)) throw new Error("No project server is available.");
