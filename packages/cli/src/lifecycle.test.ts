@@ -69,8 +69,8 @@ describe("built CLI listener lifecycle", () => {
   }, 30000);
 
   it("propagates an explicit host into the detached child and returned lifecycle origin", async () => {
-    const ready = await open([fixture(), "--host", "127.0.0.2"]);
-    expect(new URL(ready.url).hostname).toBe("127.0.0.2");
+    const ready = await open([fixture(), "--host", "::1"]);
+    expect(new URL(ready.url).hostname).toBe("[::1]");
     expect(ready.viewerUrl).toBe(ready.url);
     expect((await fetch(new URL("/api/model", ready.url))).status).toBe(200);
     expect(await modelStatus(ready.url, { Host: "localhost:" + new URL(ready.url).port })).toBe(403);
