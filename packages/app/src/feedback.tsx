@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { GraphDiff, ProjectNode } from "./types";
+import { apiFetch, createClientRequestId } from "./api";
 import {
   feedbackTargetUnavailableReason,
   feedbackDraftKey,
@@ -92,7 +93,7 @@ export function useFeedbackSession(enabled: boolean, view: FeedbackView): Sessio
       const timeout = setTimeout(() => controller.abort(), 5000);
       let unavailable = false;
       try {
-        const response = await fetch("/api/session?view=" + view, { signal: controller.signal, cache: "no-store" });
+        const response = await apiFetch("/api/session?view=" + view, { signal: controller.signal, cache: "no-store" });
         if (response.status === 404 && !sessionId.current) {
           unavailable = true;
           if (!disposed) setConnection("unavailable");
@@ -148,7 +149,7 @@ export function useFeedbackSession(enabled: boolean, view: FeedbackView): Sessio
     commandBusy.current = true;
     setPending(true);
     try {
-      const response = await fetch("/api/feedback/" + action, {
+      const response = await apiFetch("/api/feedback/" + action, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Emviz-Token": snapshot.token },
         body: JSON.stringify(body),
@@ -234,14 +235,14 @@ export function AgentPanel({
   const add = (event: React.FormEvent) => {
     event.preventDefault();
     if (addReason || !snapshot || !node || !message.trim()) return;
-    const item = captureQueuedFeedback(snapshot, node, message, crypto.randomUUID());
+    const item = captureQueuedFeedback(snapshot, node, message, createClientRequestId());
     onQueueChange((current) => addQueuedFeedback(current, item));
     onAdded(message);
   };
 
   const send = async () => {
     if (batchReason || sendBusy.current) return;
-    const next = beginFeedbackSubmission(queue, queue.submission?.body.clientBatchId ?? crypto.randomUUID());
+    const next = beginFeedbackSubmission(queue, queue.submission?.body.clientBatchId ?? createClientRequestId());
     const submission = next.submission;
     if (!submission) return;
     sendBusy.current = true;

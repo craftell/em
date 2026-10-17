@@ -49,11 +49,31 @@ npx emviz .
 The CLI prints a local URL:
 
 ```text
-  ->  Local:   http://localhost:5173/
+  ->  Local:   http://127.0.0.1:5173/
 Project: /path/to/your/project
 ```
 
 If `.event-modeling/graph.json` is missing, `emviz` creates it on first project-mode startup.
+
+## Access from another machine
+
+The default listener stays on `127.0.0.1`. To use a second machine on your
+tailnet, bind to this server machine's specific Tailscale IP:
+
+```sh
+emviz . --host "$TAILSCALE_IP"
+emviz open . --host "$TAILSCALE_IP"
+```
+
+Set `TAILSCALE_IP` to the address assigned to the machine running emviz.
+Open the printed viewer link on the other machine. A remote viewer link includes
+a private capability in its fragment. Keep that link private.
+
+Use an encrypted private network such as Tailscale. emviz serves HTTP, so an
+ordinary LAN or public connection can expose model data and tokens in transit.
+This option does not configure Tailscale, firewall rules, or port forwarding.
+Wildcard addresses and DNS bind names are rejected. See the
+[host and security reference](packages/cli/README.md#host-and-security) for limits.
 
 ## Companion Skills
 
@@ -132,7 +152,7 @@ Use emviz to open this project's Event Model and keep handling my browser feedba
 
 In this repository, the same request opens emviz's own Event Model.
 
-The agent runs `emviz open .` and gives you the returned local URL. Open that URL and select **Agent** in the right sidebar. Select a node, write feedback, and choose **Add to Queue**. Repeat for other nodes, review the queue, then choose **Send to Agent**. Queueing does not contact the agent. The agent receives every queued item together, edits the YAML files, and replies once for the batch. It replies before polling for your next message. Each idle poll lasts up to 25
+The agent runs `emviz open .` and gives you the returned `viewerUrl`. The default viewer stays local. Open that URL and select **Agent** in the right sidebar. Select a node, write feedback, and choose **Add to Queue**. Repeat for other nodes, review the queue, then choose **Send to Agent**. Queueing does not contact the agent. The agent receives every queued item together, edits the YAML files, and replies once for the batch. It replies before polling for your next message. Each idle poll lasts up to 25
 seconds; a timeout starts another poll.
 
 The viewer runs as a detached local server. The LLM must remain active to read

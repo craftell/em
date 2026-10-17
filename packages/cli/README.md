@@ -15,6 +15,54 @@ pnpm dlx emviz
 
 `emviz [project-dir]` starts the local viewer in the foreground. With no directory, the browser offers manual import. Project mode creates `.event-modeling/graph.json` when the sidecar is missing. `emviz sync` creates or updates the sidecar explicitly.
 
+## Host and security
+
+`--host <IP>` and `--host=<IP>` select the listening address for foreground,
+`serve`, `open`, and `diff` commands. The default is `127.0.0.1`.
+
+```sh
+emviz . --host "$TAILSCALE_IP"
+emviz open . --host "$TAILSCALE_IP"
+emviz diff HEAD~1 --host "$TAILSCALE_IP"
+emviz . --host ::1
+```
+
+Use a specific IP assigned to the server machine. IPv4 and IPv6 literals are
+supported. IPv6 viewer URLs use brackets. Wildcards such as `0.0.0.0` and `::`,
+DNS names, URLs, and scoped IPv6 addresses are rejected. The server does not
+discover an address, enable Tailscale, or change firewall rules.
+
+For remote listeners, every API request requires the session capability,
+including model reads and session snapshots. The server accepts only the
+configured IP and actual listening port in the Host header. An Origin header
+must match that exact HTTP origin. This does not authorize other hosts or CORS
+origins.
+
+For remote project sessions, the printed `viewerUrl` contains the capability in
+a URL fragment. Remote manual-import and diff modes print the complete viewer
+link without feedback connection JSON. The browser
+removes the fragment and keeps the capability in tab-scoped session storage so
+reloads work. Static app files do not contain the capability. Anyone with the
+private viewer link can read the model and control its feedback session.
+Never post the link or token in shared logs, tickets, screenshots, or public chat.
+
+Use an encrypted private network such as Tailscale with appropriate access rules.
+emviz uses plain HTTP. On an ordinary LAN or the public Internet, model data and
+capabilities are visible in transit. Do not expose this server through a public
+proxy. Close the owned server when finished to invalidate its capability.
+
+Browsers can block clipboard APIs on non-loopback HTTP origins. If a copy button
+does not work, select and copy the displayed text manually. Some existing copy
+controls do not show a failure message.
+
+CLI `poll`, `reply`, `stop`, and `close` accept a clean HTTP origin using a
+concrete IP or the legacy `localhost` alias. They reject credentials, paths,
+queries, fragments, DNS destinations, and redirects. Use exactly the returned
+`url`; `viewerUrl` is for the browser.
+
+`pnpm dev` starts Vite's manual-import development app. It is separate from the
+project server and this CLI option.
+
 ## External-agent commands
 
 These commands connect an agent that the user starts separately. The server does not invoke an LLM, call a model provider, or edit canonical YAML on the agent's behalf.
@@ -25,7 +73,11 @@ These commands connect an agent that the user starts separately. The server does
 emviz open <project-dir>
 ```
 
-Starts a detached server on loopback and exits after startup. Standard output contains a JSON object with `url`, `token`, `pid`, and `next_step`. The URL opens the viewer. The token authorizes feedback operations. The PID identifies the server owned by this open command.
+Starts a detached server and exits after startup. The default host is `127.0.0.1`.
+Standard output contains a JSON object with `url`, `viewerUrl`, `token`, `pid`, and
+`next_step`. Open `viewerUrl` in the browser. Use the clean `url` for CLI commands.
+The token authorizes feedback operations. The PID identifies the server owned by
+this open command.
 
 Keep the token private. Each server has its own in-memory session and history.
 
@@ -77,7 +129,9 @@ Project feedback reads at most 512 model files and 8 MiB per snapshot. Discovery
 
 The additive `POST /api/feedback/batch` accepts `{ clientBatchId, items: [{ id, nodeId, reference, revision, message }] }`. All items must refer to the same current snapshot. Invalid or stale items reject the whole batch before any agent receives it. Reusing an ID with different ordered contents fails. Existing `POST /api/feedback/request` clients remain supported.
 
-Feedback operations require the session token. The browser obtains its token from the same-origin session snapshot. The agent passes the token through `--token`. Do not expose the server through a network proxy or share its token.
+Feedback operations require the session token. Loopback viewers obtain the token
+from their same-origin session snapshot. Remote viewers use the private
+`viewerUrl` described below. The agent passes the token through `--token`.
 
 ## Review views
 

@@ -19,6 +19,8 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 
 - [Inspect actor tags and filtered flows](actors.md) covers registry metadata, OR selection, bounded system context, and frozen diff/export values. This journey is unexecuted.
 
+- [Access from another private-network machine](remote-access.md) covers explicit IP binding, authenticated browser bootstrap, Host and Origin rejection, and remote cleanup. This journey is unexecuted.
+
 ## Proof reporting
 
 Record each entry point you exercised. The new script covers search selection, a two-node batch and a GWT turn, diff review, stop, resume, close, and export. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.
