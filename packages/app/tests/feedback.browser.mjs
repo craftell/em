@@ -179,6 +179,12 @@ test("a user sends feedback to an external agent and reviews persistent file edi
       await page.getByRole("button", { name: "Refresh", exact: true }).click();
       assert.equal(await page.getByRole("region", { name: "Feedback Queue", exact: true }).getByRole("listitem").count(), 2);
       assert.equal((await snapshot()).feedback.status, "idle", "selection and refresh must not send queued items");
+      await page.reload();
+      await page.locator(".react-flow__node").first().waitFor();
+      await agentTab();
+      assert.equal(await page.getByRole("region", { name: "Feedback Queue", exact: true }).getByRole("listitem").count(), 2,
+        "a full reload must preserve both unsent targets");
+      assert.equal((await snapshot()).feedback.status, "idle", "reload must not dispatch the Queue");
       await page.setViewportSize({ width: 680, height: 900 });
       const sendButton = page.getByRole("button", { name: "Send to Agent", exact: true });
       await sendButton.scrollIntoViewIfNeeded();
@@ -285,11 +291,15 @@ test("a user sends feedback to an external agent and reviews persistent file edi
       viewport: { width: 1440, height: 1000 },
       recordVideo: { dir: join(evidence, "video"), size: { width: 1440, height: 1000 } }
     });
+    await context.addInitScript(() => {
+      Object.defineProperty(crypto, "randomUUID", { value: undefined });
+    });
     await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
     traceStarted = true;
     page = await context.newPage();
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.goto(session.url);
+    assert.equal(await page.evaluate(() => typeof crypto.randomUUID), "undefined", "queue and batch IDs must work without the secure-context-only UUID API");
     await page.locator(".react-flow__node").first().waitFor();
     assert.equal(await page.getByRole("tab", { name: "Details", exact: true }).getAttribute("aria-selected"), "true");
     await agentTab();
