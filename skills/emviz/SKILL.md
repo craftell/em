@@ -126,8 +126,8 @@ does not establish authorship. Feedback is unavailable in Turn diff, manual
 imports, and standalone exports.
 
 Actor selections use OR matching. Matching user screens retain their whole
-slice, GWT cases, connected events, and one directly adjacent system slice of
-context. Actor tags do not assign actors to processors. Use **Unassigned screens**
+slice, GWT cases, connected events, and directly adjacent system slices as
+context. Expansion stops after one system-slice hop. Actor tags do not assign actors to processors. Use **Unassigned screens**
 for user screens without actors. Old and new actor memberships remain selectable
 in diff views.
 
