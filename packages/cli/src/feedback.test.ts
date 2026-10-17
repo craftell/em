@@ -129,6 +129,32 @@ describe("external feedback", () => {
     expect(session.snapshot("current").project.nodes.some((node) => node.label === "Other")).toBe(true);
   });
 
+  it.each([".", "nested"])("reads the fixed Git baseline through a directory alias at %s", (directory) => {
+    const root = project();
+    // Keep the nested fixture in its own repository, outside any existing checkout.
+    const gitRoot = directory === "." ? root : fs.mkdtempSync(path.join(os.tmpdir(), "emviz-baseline-repo-"));
+    if (directory !== ".") {
+      roots.push(gitRoot);
+      fs.cpSync(root, path.join(gitRoot, directory), { recursive: true });
+    }
+    const git = (args: string[]) => execFileSync("git", ["-C", gitRoot, ...args], { stdio: "pipe" });
+    git(["init"]);
+    git(["add", "."]);
+    git(["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-m", "Alias baseline"]);
+    const commit = git(["rev-parse", "HEAD"]).toString().trim();
+    const aliasParent = fs.mkdtempSync(path.join(os.tmpdir(), "emviz-baseline-alias-"));
+    roots.push(aliasParent);
+    const alias = path.join(aliasParent, "project");
+    fs.symlinkSync(gitRoot, alias, "dir");
+    const target = path.join(alias, directory);
+    edit(target);
+
+    const snapshot = new FeedbackSession(target).snapshot("session");
+    expect(snapshot.baseline).toEqual({ kind: "git", label: commit });
+    expect(snapshot.diff!.summary.nodes.added).toBe(1);
+    expect(snapshot.diff!.summary.nodes.removed).toBe(0);
+  });
+
   it("rejects oversized or conflicting messages", () => {
     const session = new FeedbackSession(project());
     const input = request(session);

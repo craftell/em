@@ -346,6 +346,7 @@ test("filtered long lists restore scroll and reset on same-titled slice switches
     assert.ok(await list.evaluate((element) => element.scrollTop > 0));
     assert.deepEqual(await geometry(page), initial);
     const result = list.locator(".gwt-all-list button").nth(20);
+    await result.scrollIntoViewIfNeeded();
     await result.focus();
     const scroll = await list.evaluate((element) => element.scrollTop);
     await page.keyboard.press("Enter");
@@ -966,7 +967,9 @@ test("diff actor filtering preserves former membership and frozen Old version ch
     await page.locator('[data-id="screen-1"]').waitFor({ state: "detached" });
     const displayed = page.locator('[data-id="screen-0"]');
     assert.deepEqual(await displayed.locator(".actor-name").allTextContents(), ["Admin"]);
-    await displayed.click({ force: true });
+    // The diff summary can cover the canvas node. Select it through the visible search control.
+    await page.getByLabel("Search event model", { exact: true }).fill("Screen 0");
+    await page.locator(".search-results").getByRole("button", { name: "Screen 0 screen", exact: true }).click();
     const details = page.getByRole("complementary", { name: "Node details" });
     await details.getByRole("button", { name: "Old version", exact: true }).click();
     assert.deepEqual(await details.locator(".actor-name").allTextContents(), ["Customer", "Auditor"]);
