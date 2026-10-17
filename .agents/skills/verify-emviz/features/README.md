@@ -1,6 +1,6 @@
 # emviz verification map
 
-DRAFT. These journeys have not been executed for the feedback change.
+The core feedback journey and all 17 app browser cases passed on 2026-10-17 at `cac6de2`. See the [verification skill](../SKILL.md) for retained evidence. Real-server actor and two-machine remote-access journeys remain unexecuted.
 
 The [verification skill](../SKILL.md) owns launch, doctor, evidence, and cleanup. Read it before driving a feature.
 
@@ -23,6 +23,6 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 
 ## Proof reporting
 
-Record each entry point you exercised. The new script covers search selection, a two-node batch and a GWT turn, diff review, stop, resume, close, and export. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.
+Record each entry point you exercised. The real-server script covers search selection, an unsent queue across reload, a two-node batch and a GWT turn without `crypto.randomUUID`, diff review, stop, resume, close, and export. The fixture-driven suite also checks Edit, Remove, and exact retry after a failed response and reload. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.
 
 A pass through one entry point does not verify all entry points. Report missing preconditions and skipped paths. Keep screenshots, video, trace, CLI output, and file contents outside the disposable project.

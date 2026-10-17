@@ -25,8 +25,10 @@ that the built CLI's help lists `--host`. Published emviz 0.4.0 lacks this optio
 4. Reload the same tab. Expect the same model to load with tab-scoped credentials.
    In a fresh private browsing session, open only the clean `url`. Expect no
    project data until the private viewer link is supplied.
-5. Select a node and submit **Node feedback**. Verify that feedback works on the
-   HTTP IP origin, where `crypto.randomUUID` can be unavailable.
+5. Select a node, open **Agent**, write feedback, and choose **Add to Queue**.
+   Repeat for another node, then choose **Send to Agent** once. Verify that both
+   queue-item IDs and the batch ID work on the HTTP IP origin, where
+   `crypto.randomUUID` can be unavailable.
 6. Run the CLI poll and reply commands with the clean `url` and token. Edit
    only the disposable model. Verify the reply and **Turn diff** in the browser.
 7. Test clipboard controls. If the browser blocks clipboard access for plain

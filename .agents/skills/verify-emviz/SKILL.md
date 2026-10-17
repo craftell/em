@@ -8,7 +8,9 @@ description: >-
 
 # Verify emviz
 
-DRAFT. This skill and its feedback script have not been executed during this change. No screenshot, video, trace, or runtime pass is claimed. Remove this label only after a real run completes every section below and its evidence survives cleanup.
+The core feedback journey passed on 2026-10-17 at `cac6de2`, including the merged host-aware API helpers, two-node batches, reload recovery, GWT feedback, frozen diffs, stop, resume, close, and offline export. Screenshots, ARIA snapshots, videos, trace, CLI output, and canonical YAML survived cleanup. Evidence is retained outside the checkout at `/home/kfukuyama/fm-homes/personal/data/agent-sidebar-queue/browser/2026-10-17T15-27-44-061Z-85a35766/`.
+
+The app browser suite also passed all 17 cases, including queue editing, removal, exact retry after an uncertain response and reload, GWT navigation, and actor fixtures. The full real-server actor journey and two-machine remote-access journey remain unexecuted. Their feature files keep their draft labels.
 
 Read the [feature map](features/README.md) before choosing a journey. Use a checkout containing the feedback implementation.
 
@@ -55,7 +57,9 @@ Run the complete feedback journey:
 node --test packages/app/tests/feedback.browser.mjs
 ```
 
-The journey selects **PlaceOrder** and **OrderStatus** through **Search event model**. It opens **Agent**, uses **Add to Queue** for each node, and proves that queueing and Refresh do not send. **Send to Agent** releases one real CLI poll with both items. The test agent edits both targets in canonical YAML and replies once. The browser then checks **Session diff** with **Old version** and **New version**.
+The journey disables the browser's `crypto.randomUUID` API to exercise the shared request-ID helper used on plain HTTP IP origins. This local check does not prove access from another machine.
+
+The journey selects **PlaceOrder** and **OrderStatus** through **Search event model**. It opens **Agent**, uses **Add to Queue** for each node, and proves that queueing, Refresh, and a full page reload do not send. **Send to Agent** releases one real CLI poll with both items. The test agent edits both targets in canonical YAML and replies once. The browser then checks **Session diff** with **Old version** and **New version**.
 
 A second batch targets **Duplicate order**, a GWT scenario. After that reply, the script checks **Turn diff**, makes a later manual file edit, and proves that the completed turn remains frozen. It also exercises browser stop and resume, CLI stop, server close, and a standalone export after shutdown.
 
@@ -118,4 +122,4 @@ If the test reports a cleanup error, retain the project path and owned PID from 
 
 Both scripts have executable entry points. Use the explicit `node` commands above for consistent behavior.
 
-After the first successful real run, update this draft with the tested revision and evidence location. Use `/maintain-verification-skill` when that skill is available to keep the feature map aligned with future UI changes.
+After a successful real run, update the tested revision and evidence location above. Use `/maintain-verification-skill` when that skill is available to keep the feature map aligned with future UI changes.

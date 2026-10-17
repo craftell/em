@@ -24,13 +24,15 @@ Use the owned fixture after Doctor passes. Keep one agent ID and one foreground 
 2. Run `emviz poll` with the owned URL, token, and agent ID. Verify **Agent connected**.
 3. Select **PlaceOrder**. Fill the **Feedback message** textarea in the **Node feedback** form. Click **Add to Queue**.
 4. Read the real session snapshot. It must still be idle. Queueing must not release the waiting agent poll.
-5. Select **OrderStatus**, open **Agent**, and queue its message. Choose **Refresh**. The **Feedback Queue** region must retain both items.
+5. Select **OrderStatus**, open **Agent**, and queue its message. Choose **Refresh**, then reload the page and reopen **Agent**. The **Feedback Queue** region must retain both items without sending.
 6. Click **Send to Agent**. The real CLI poll must return one request whose ordered `items` preserve both node IDs, messages, references, and revisions.
 7. Verify **Working**. Edit both canonical targets, validate the files, and reply once with the returned request ID.
 8. Open **Feedback history**. Verify the reply text and read both file edits back.
 9. Complete another turn for **Duplicate order**. Confirm the first batch did not silently include any later draft.
 
-Extend fixture checks with Edit, Remove, selection changes, a full page reload, stale revisions, stopped sessions, and a failed Send. Require unchanged request identity when retrying an uncertain result. A stale item must stay visible and must not be silently rebased.
+The app browser suite verifies Edit, Remove, selection changes, reload recovery, stopped sessions, and an uncertain Send. Its retry case uses intercepted responses and requires identical batch IDs, item IDs, targets, revisions, and messages after reload. It does not replace the real CLI journey. Queue and server unit suites cover stale revisions and whole-batch rejection.
+
+Use **Search event model** and assert the composer heading before queueing an offscreen node. Do not force-click a graph node behind the sidebar. A stale item must stay visible and must not be silently rebased.
 
 ## Evidence
 
