@@ -477,11 +477,13 @@ describe("feedback batches", () => {
 
   it("bounds captured source context across the whole batch", () => {
     const root = project();
-    fs.appendFileSync(path.join(root, slice), "#" + "x".repeat(60000) + "\n");
+    fs.appendFileSync(path.join(root, "event-model/events.yaml"), "#" + "x".repeat(60000) + "\n");
     const session = new FeedbackSession(root);
     const input = batch(session);
-    expect(() => session.submitBatch({ ...input, items: Array.from({ length: 20 }, (_, index) => ({ ...input.items[0], id: String(index) })) })).toThrow("1 MiB");
+    const item = input.items[1];
+    expect(() => session.submitBatch({ ...input, items: Array.from({ length: 20 }, (_, index) => ({ ...item, id: String(index) })) })).toThrow("1 MiB");
     expect(session.snapshot("current").feedback.status).toBe("idle");
+    expect(session.submitBatch({ ...input, items: [item] }).items).toEqual([item]);
   });
 
   it("requires authorization and accepts a bounded Unicode batch through HTTP", async () => {

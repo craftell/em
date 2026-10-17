@@ -212,7 +212,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isIdentity(value: unknown): value is NodeIdentity {
   return isRecord(value) &&
-    ["story", "slice", "screen", "processor", "command", "event", "query", "gwt"].includes(String(value.type)) &&
+    typeof value.type === "string" && ["story", "slice", "screen", "processor", "command", "event", "query", "gwt"].includes(value.type) &&
     typeof value.label === "string" &&
     ["sourcePath", "sourceName", "sliceTitle"].every((key) => value[key] === undefined || typeof value[key] === "string");
 }

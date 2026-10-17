@@ -251,6 +251,18 @@ describe("reload recovery", () => {
     expect(recoveredSend.recoveryWarning).toBeUndefined();
   });
 
+  it("rejects a non-string saved node type instead of coercing it into an identity", () => {
+    const workspace = emptyFeedbackWorkspace();
+    const item = twoItems().items[0];
+    const malformed = { ...item, identity: { ...item.identity, type: ["command"] } };
+    const raw = JSON.stringify({ ...workspace, queue: { items: [malformed] } });
+    const recovered = restoreFeedbackWorkspace(raw);
+    expect(recovered.queue.items).toEqual([]);
+    expect(recovered.recoveryWarning).toBeDefined();
+    const draft = { sessionId: "session-1", identity: malformed.identity, message: "Keep this draft" };
+    expect(restoreFeedbackWorkspace(JSON.stringify({ ...workspace, drafts: { saved: draft } })).recoveryWarning).toBeDefined();
+  });
+
   it("flags damaged storage for review instead of silently presenting it as an empty saved Queue", () => {
     expect(restoreFeedbackWorkspace(null)).toEqual(emptyFeedbackWorkspace());
     expect(restoreFeedbackWorkspace("{broken").recoveryWarning).toBeDefined();
