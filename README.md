@@ -28,7 +28,7 @@ It is not a YAML editor. The canonical model stays in your Event Modeling files;
 
 5. **Send feedback to your own agent**
    - Start your LLM agent separately and use the `emviz` skill to open the viewer and receive feedback.
-   - Select a node, send feedback, and review the agent's reply with current, session, and turn views.
+   - Open the Agent sidebar, queue feedback for one or more nodes, then send the batch and review the reply.
    - The agent edits canonical YAML directly. The local server does not invoke an LLM or commit changes.
 
 6. **Compare model versions**
@@ -132,7 +132,7 @@ Use emviz to open this project's Event Model and keep handling my browser feedba
 
 In this repository, the same request opens emviz's own Event Model.
 
-The agent runs `emviz open .` and gives you the returned local URL. Open that URL, select a node, and send a message from **Node feedback**. The agent receives the selected node's context, edits the YAML files, and replies. It replies before polling for your next message. Each idle poll lasts up to 25
+The agent runs `emviz open .` and gives you the returned local URL. Open that URL and select **Agent** in the right sidebar. Select a node, write feedback, and choose **Add to Queue**. Repeat for other nodes, review the queue, then choose **Send to Agent**. Queueing does not contact the agent. The agent receives every queued item together, edits the YAML files, and replies once for the batch. It replies before polling for your next message. Each idle poll lasts up to 25
 seconds; a timeout starts another poll.
 
 The viewer runs as a detached local server. The LLM must remain active to read
@@ -144,7 +144,9 @@ Use **Current** to inspect files on disk, **Session diff** to compare with the f
 
 **Stop session** stops feedback. **Resume session** starts accepting feedback again, but you must restart the external agent's poll loop after it exits. Restarting the server discards request history.
 
-Node IDs can change when names collide. Feedback captures the current reference, source, context, and file revision. Re-select a node if the model changes before the request starts.
+Queue items retain their original node, reference, and file revision. Edit or remove an item before sending. Selection changes and Refresh preserve unsent drafts and queue items. If the model changes, remove stale items and queue them again from the current node. The viewer never silently retargets or sends them.
+
+An uncertain Send keeps the same batch ID and contents for a retry. Stop session cancels submitted work but preserves unsent browser feedback. It cannot stop an external process or undo file edits. Agent connected reflects the external agent's poll activity, not the viewer's own refreshes.
 
 See the [CLI command reference](packages/cli/README.md) for session commands, limits, and cleanup.
 
@@ -228,7 +230,9 @@ event-model/
    - Draws behavior flow from screen / processor to command, command to event, and event to query.
    - Uses React Flow controls for zoom and fit view.
 
-3. **Selection panel**
+3. **Right sidebar**
+   - **Details** retains source, connections, fields, findings, and GWT inspection.
+   - **Agent** contains the feedback composer, unsent Queue, Send, session controls, history, and model views.
    - Shows the selected node type, current reference, source path, and source excerpt.
    - Lists incoming and outgoing connections.
    - Provides `Copy for LLM` actions for reference, YAML, context, and edit prompt.

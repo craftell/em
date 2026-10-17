@@ -30,6 +30,12 @@
       "prompt": "Keep monitoring browser feedback after you finish this turn. Your host cannot run another tool or wake you once you finish.",
       "expected_output": "Does not promise background monitoring. Explains that the detached viewer cannot process LLM requests and that the agent must stay active or be resumed.",
       "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "The viewer sends one request with clientBatchId and two items for different nodes. The top-level nodeId belongs to the first item. Handle the request and then resume polling.",
+      "expected_output": "Reads and checks both captured targets before editing, handles every authorized item as one turn, reports unresolved items, replies once with the batch request ID, and resumes polling. Does not mistake the first top-level node for the complete batch.",
+      "files": []
     }
   ]
 }

@@ -55,9 +55,9 @@ Run the complete feedback journey:
 node --test packages/app/tests/feedback.browser.mjs
 ```
 
-The journey selects **PlaceOrder** through **Search event model**, sends **Node feedback**, and has an external CLI poll claim it. The test agent edits canonical YAML and replies. The browser then checks **Session diff** with **Old version** and **New version**.
+The journey selects **PlaceOrder** and **OrderStatus** through **Search event model**. It opens **Agent**, uses **Add to Queue** for each node, and proves that queueing and Refresh do not send. **Send to Agent** releases one real CLI poll with both items. The test agent edits both targets in canonical YAML and replies once. The browser then checks **Session diff** with **Old version** and **New version**.
 
-A second request targets **Duplicate order**, a GWT scenario. After that reply, the script checks **Turn diff**, makes a later manual file edit, and proves that the completed turn remains frozen. It also exercises browser stop and resume, CLI stop, server close, and a standalone export after shutdown.
+A second batch targets **Duplicate order**, a GWT scenario. After that reply, the script checks **Turn diff**, makes a later manual file edit, and proves that the completed turn remains frozen. It also exercises browser stop and resume, CLI stop, server close, and a standalone export after shutdown.
 
 Use the exact selectors in the feature files when extending the journey. Treat unreachable controls, missing fixture data, and unexpected disabled states as failures. Do not replace a user action with an internal state setter.
 

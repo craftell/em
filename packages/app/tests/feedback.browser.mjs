@@ -15,7 +15,8 @@ const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const cliPath = join(repo, "packages/cli/dist/index.js");
 const sourcePath = "event-model/features/orders/place-order.slice.yaml";
 const requestText = "Add customerId: uuid to the PlaceOrder command fields.";
-const replyText = "Added customerId to PlaceOrder in the canonical slice YAML.";
+const replyText = "Added customerId to PlaceOrder and OrderStatus in the canonical slice YAML.";
+const queryRequestText = "Add customerId: uuid to the OrderStatus query fields.";
 const gwtRequestText = "Clarify that a duplicate order does not produce another event.";
 const gwtReplyText = "Clarified the duplicate-order scenario in the canonical slice YAML.";
 const seedSlice = `slice: Place an order
@@ -133,6 +134,9 @@ test("a user sends feedback to an external agent and reviews persistent file edi
   async function select(name, type) {
     await page.getByLabel("Search event model", { exact: true }).fill(name);
     await page.locator(".search-results").getByRole("button", { name: name + " " + type, exact: true }).click();
+    if (await page.getByRole("tab", { name: "Details", exact: true }).count()) {
+      await page.getByRole("tab", { name: "Details", exact: true }).click();
+    }
     await page.getByRole("complementary", { name: "Node details" }).waitFor();
   }
 
@@ -151,30 +155,67 @@ test("a user sends feedback to an external agent and reviews persistent file edi
     await waitFor(async () => (await snapshot()).feedback.agent.connected, "the external CLI poll must connect its agent");
   }
 
-  async function claim(message, nodeId) {
+  async function agentTab() {
+    await page.getByRole("tab", { name: "Agent", exact: true }).click();
+  }
+
+  async function changeView(name) {
+    await agentTab();
+    await page.getByRole("group", { name: "Model view" }).getByRole("button", { name, exact: true }).click();
+  }
+
+  async function claim(message, nodeId, extraNode) {
+    await agentTab();
     const feedback = page.getByRole("form", { name: "Node feedback" });
     await feedback.getByLabel("Feedback message", { exact: true }).fill(message);
     await capture(message === requestText ? "01-command-before-send" : "04-gwt-before-send");
-    await feedback.getByRole("button", { name: "Send feedback", exact: true }).click();
+    await feedback.getByRole("button", { name: "Add to Queue", exact: true }).click();
+    assert.ok(["idle", "completed"].includes((await snapshot()).feedback.status), "Queue must not dispatch feedback");
+    if (extraNode) {
+      await select("OrderStatus", "query");
+      await agentTab();
+      await feedback.getByLabel("Feedback message", { exact: true }).fill(queryRequestText);
+      await feedback.getByRole("button", { name: "Add to Queue", exact: true }).click();
+      await page.getByRole("button", { name: "Refresh", exact: true }).click();
+      assert.equal(await page.getByRole("region", { name: "Feedback Queue", exact: true }).getByRole("listitem").count(), 2);
+      assert.equal((await snapshot()).feedback.status, "idle", "selection and refresh must not send queued items");
+      await page.setViewportSize({ width: 680, height: 900 });
+      const sendButton = page.getByRole("button", { name: "Send to Agent", exact: true });
+      await sendButton.scrollIntoViewIfNeeded();
+      const bounds = await sendButton.boundingBox();
+      assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= 680 && bounds.y + bounds.height <= 900,
+        "Send must remain reachable in the narrow sidebar");
+      await capture("01-narrow-queue");
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    }
+    await page.getByRole("button", { name: "Send to Agent", exact: true }).click();
     const result = await pendingPoll;
     pendingPoll = undefined;
     assert.equal(result.status, "request");
     assert.equal(result.request.nodeId, nodeId);
-    assert.equal(result.request.message, message);
-    assert.equal(result.request.sourcePath, sourcePath);
+    assert.equal(result.request.items.length, extraNode ? 2 : 1);
+    assert.equal(result.request.items[0].message, message);
+    assert.equal(result.request.items[0].nodeId, nodeId);
+    if (extraNode) {
+      assert.equal(result.request.items[1].nodeId, extraNode.id);
+      assert.equal(result.request.items[1].message, queryRequestText);
+      assert.equal(result.request.items[1].revision, result.request.items[0].revision);
+    }
+    assert.equal(result.request.items[0].sourcePath, sourcePath);
     assert.equal(resolve(result.request.projectRoot), projectRoot);
     assert.ok(result.request.reference.endsWith("/" + nodeId));
     assert.ok(result.request.yaml.includes("slice: Place an order"));
     assert.equal(typeof result.request.context, "string");
-    await waitFor(async () => (await snapshot()).feedback.status === "working", "the browser request must be claimed");
-    assert.equal(await feedback.getByRole("button", { name: "Send feedback", exact: true }).isDisabled(), true);
+    await waitFor(async () => (await snapshot()).feedback.status === "working", "the browser batch must be claimed");
+    assert.equal(await page.getByRole("button", { name: "Send to Agent", exact: true }).isDisabled(), true);
     return result.request;
   }
 
   async function complete(request, text) {
     await cli("reply", request.id, text, ...credentials(), "--agent", agent);
     await waitFor(async () => (await snapshot()).feedback.status === "completed", "the reply must complete the request");
-    const history = page.getByRole("region", { name: "Feedback session" }).locator("details");
+    await agentTab();
+    const history = page.getByRole("complementary", { name: "Agent", exact: true }).locator("details").filter({ has: page.locator("summary").filter({ hasText: "Feedback history (" }) });
     if (await history.getAttribute("open") === null) await history.locator("summary").click();
     const reply = history.locator('li[data-request-id="' + request.id + '"] .feedback-reply');
     await reply.waitFor();
@@ -231,8 +272,9 @@ test("a user sends feedback to an external agent and reviews persistent file edi
     assert.equal(initial.baseline.label, baselineSha);
     assert.equal(initial.feedback.status, "idle");
     const command = initial.project.nodes.find((node) => node.type === "command" && node.label === "PlaceOrder");
+    const query = initial.project.nodes.find((node) => node.type === "query" && node.label === "OrderStatus");
     const gwt = initial.project.nodes.find((node) => node.type === "gwt" && node.label === "Duplicate order");
-    assert.ok(command && gwt, "the seeded project must contain both selectable nodes");
+    assert.ok(command && query && gwt, "the seeded project must contain both selectable nodes");
     await writeFile(join(evidence, "doctor.json"), JSON.stringify({
       url: session.url, pid: session.pid, projectRoot, baselineSha, baseline: initial.baseline,
       nodeVersion: process.version, cliPath
@@ -249,22 +291,34 @@ test("a user sends feedback to an external agent and reviews persistent file edi
     page.on("pageerror", (error) => pageErrors.push(error.message));
     await page.goto(session.url);
     await page.locator(".react-flow__node").first().waitFor();
+    assert.equal(await page.getByRole("tab", { name: "Details", exact: true }).getAttribute("aria-selected"), "true");
+    await agentTab();
     await page.getByRole("region", { name: "Feedback session" }).waitFor();
+    assert.match(await page.getByRole("region", { name: "Feedback session" }).textContent(), /Agent disconnected/);
     await select("PlaceOrder", "command");
-    assert.equal(await page.getByRole("button", { name: "Send feedback", exact: true }).isDisabled(), true);
+    await agentTab();
+    assert.equal(await page.getByRole("button", { name: "Send to Agent", exact: true }).isDisabled(), true);
+    const agentBounds = await page.getByRole("complementary", { name: "Agent", exact: true }).boundingBox();
+    const sessionBounds = await page.getByRole("region", { name: "Feedback session" }).boundingBox();
+    assert.ok(agentBounds && sessionBounds);
+    assert.ok(sessionBounds.x >= agentBounds.x && sessionBounds.x + sessionBounds.width <= agentBounds.x + agentBounds.width + 1,
+      "session controls must stay inside the Agent sidebar");
     await startPoll();
-    const first = await claim(requestText, command.id);
+    const first = await claim(requestText, command.id, query);
     await capture("02-command-working");
-    const firstEdit = seedSlice.replace("      orderId: uuid\n    produces:", "      orderId: uuid\n      customerId: uuid\n    produces:");
+    const firstEdit = seedSlice.replace("      orderId: uuid\n    produces:", "      orderId: uuid\n      customerId: uuid\n    produces:")
+      .replace("      orderId: uuid\n    from_events:", "      orderId: uuid\n      customerId: uuid\n    from_events:");
     assert.notEqual(firstEdit, seedSlice);
     await writeFile(join(projectRoot, sourcePath), firstEdit);
     await complete(first, replyText);
     assert.equal(await readFile(join(projectRoot, sourcePath), "utf8"), firstEdit);
     await copyFile(join(projectRoot, sourcePath), join(evidence, "03-after-command.slice.yaml"));
+    const batchTurn = await snapshot("turn");
+    assert.equal(batchTurn.diff.nodeStatus[command.id], "changed");
+    assert.equal(batchTurn.diff.nodeStatus[query.id], "changed", "one turn must include every batch target");
     await waitFor(async () => (await snapshot()).project.nodes.find((node) => node.id === command.id)?.fields.includes("customerId: uuid"),
       "Current must show the agent's canonical file edit");
-    const views = page.getByRole("group", { name: "Model view" });
-    await views.getByRole("button", { name: "Session diff", exact: true }).click();
+    await changeView("Session diff");
     await select("PlaceOrder", "command");
     const details = page.getByRole("complementary", { name: "Node details" });
     await details.getByRole("button", { name: "Old version", exact: true }).click();
@@ -273,7 +327,7 @@ test("a user sends feedback to an external agent and reviews persistent file edi
     assert.ok((await details.textContent()).includes("customerId: uuid"));
     await capture("03-command-session-diff");
 
-    await views.getByRole("button", { name: "Current", exact: true }).click();
+    await changeView("Current");
     await startPoll();
     await select("Duplicate order", "gwt");
     const second = await claim(gwtRequestText, gwt.id);
@@ -281,14 +335,16 @@ test("a user sends feedback to an external agent and reviews persistent file edi
     await writeFile(join(projectRoot, sourcePath), secondEdit);
     await complete(second, gwtReplyText);
     await copyFile(join(projectRoot, sourcePath), join(evidence, "05-after-gwt.slice.yaml"));
-    await views.getByRole("button", { name: "Turn diff", exact: true }).click();
+    await changeView("Turn diff");
     await select("Duplicate order", "gwt");
     await details.getByRole("button", { name: "Old version", exact: true }).click();
     assert.ok((await details.textContent()).includes("A duplicate request is rejected."));
     assert.equal((await details.textContent()).includes("rejected without another event."), false);
     await details.getByRole("button", { name: "New version", exact: true }).click();
     assert.ok((await details.textContent()).includes("A duplicate request is rejected without another event."));
-    assert.equal(await details.getByRole("button", { name: "Send feedback", exact: true }).isDisabled(), true);
+    await agentTab();
+    assert.equal(await page.getByRole("button", { name: "Add to Queue", exact: true }).isDisabled(), true);
+    await page.getByRole("tab", { name: "Details", exact: true }).click();
     await capture("05-gwt-turn-diff");
     const turnBeforeManual = await snapshot("turn");
     assert.equal(turnBeforeManual.diff.nodeStatus[gwt.id], "changed");
@@ -310,17 +366,18 @@ test("a user sends feedback to an external agent and reviews persistent file edi
       turnBeforeManual: turnBeforeManual.diff, turnAfterManual: turnAfterManual.diff,
       session: sessionDiff.diff, baseline: sessionDiff.baseline
     }, null, 2));
-    await views.getByRole("button", { name: "Current", exact: true }).click();
+    await changeView("Current");
     await select("PlaceOrder", "command");
     await waitFor(async () => (await details.textContent()).includes("manualNote: string"), "the browser must render the later canonical value");
     await capture("06-current-after-manual");
 
     await startPoll();
+    await agentTab();
     await page.getByRole("button", { name: "Stop session", exact: true }).click();
     assert.equal((await pendingPoll).status, "stopped");
     pendingPoll = undefined;
     await page.getByRole("button", { name: "Resume session", exact: true }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "Send feedback", exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole("button", { name: "Send to Agent", exact: true }).isDisabled(), true);
     assert.equal(await readFile(join(projectRoot, sourcePath), "utf8"), manualEdit);
     await capture("07-stopped");
     await page.getByRole("button", { name: "Resume session", exact: true }).click();

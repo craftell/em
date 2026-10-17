@@ -13,7 +13,7 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 ## Features
 
 - [Select model context](select-context.md) covers ordinary nodes, GWT details, and stable source identity.
-- [Send feedback and receive a reply](feedback.md) covers the browser form and the external CLI loop.
+- [Send feedback and receive a reply](feedback.md) covers Details and Agent tabs, an unsent per-node Queue, explicit batch Send, and the external CLI loop.
 - [Review session and turn changes](review-diffs.md) covers current files, fixed baselines, and frozen turn snapshots.
 - [Stop, resume, close, and export](session-lifecycle.md) covers lifecycle controls and read-only standalone files.
 
@@ -21,6 +21,6 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 
 ## Proof reporting
 
-Record each entry point you exercised. The new script covers search selection, two feedback turns, diff review, stop, resume, close, and export. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.
+Record each entry point you exercised. The new script covers search selection, a two-node batch and a GWT turn, diff review, stop, resume, close, and export. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.
 
 A pass through one entry point does not verify all entry points. Report missing preconditions and skipped paths. Keep screenshots, video, trace, CLI output, and file contents outside the disposable project.

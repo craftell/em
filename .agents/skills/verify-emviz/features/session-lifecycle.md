@@ -12,7 +12,7 @@ Stop suspends feedback while preserving the viewer and files. Resume accepts fee
 
 ## How to get to it (user POV)
 
-- Use **Stop session** or **Resume session** in **Feedback session**.
+- Use **Stop session** or **Resume session** in **Feedback session** on the **Agent** tab.
 - Run `emviz stop` or `emviz close` with the opened session's URL and token.
 - Open the toolbar menu and choose **Export**.
 
@@ -24,7 +24,7 @@ Preconditions:
 - A completed canonical file edit exists.
 - A foreground agent poll is waiting.
 
-- **Browser stop.** Click `page.getByRole("button", { name: "Stop session", exact: true })`. The waiting CLI returns `status: "stopped"`. The browser offers **Resume session**, and **Send feedback** is disabled.
+- **Browser stop.** Click `page.getByRole("button", { name: "Stop session", exact: true })`. The waiting CLI returns `status: "stopped"`. The browser offers **Resume session**, and **Send to Agent** is disabled. Unsent drafts and queue items remain recoverable.
 - **Preserve files.** Read the canonical slice after stopping. Its contents equal the file saved before stop.
 - **Resume.** Click the exact **Resume session** button. Start a new poll with the same agent ID. Confirm the session accepts the connection.
 - **CLI stop.** Run `node packages/cli/dist/index.js stop --url "$URL" --token "$TOKEN"`. The waiting poll returns `stopped`, while the viewer remains available.
