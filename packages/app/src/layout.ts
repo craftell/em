@@ -1,3 +1,4 @@
+import { actorVisibility, type ActorFilter } from "./actors";
 import { MarkerType, type Edge, type Node, Position } from "@xyflow/react";
 import type { EventModelProject, FieldFlow, GraphDiffStatus, ProjectNode } from "./types";
 
@@ -25,6 +26,7 @@ type NodeData = {
   projectNode: ProjectNode;
   selected: boolean;
   connected: boolean;
+  actorRelated: boolean;
   diffStatus?: GraphDiffStatus;
   scenarios?: ProjectNode[];
   selectedScenarioId?: string;
@@ -258,6 +260,8 @@ export function toFlow(
     diffNodeStatus?: Record<string, GraphDiffStatus>;
     diffEdgeStatus?: Record<string, GraphDiffStatus>;
     diffFilter?: "all" | "added" | "removed" | "changed";
+    actorFilter?: ActorFilter;
+    previousNodes?: Record<string, ProjectNode>;
   } = {}
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
   const originalNodes = new Map(project.nodes.map((node) => [node.id, node]));
@@ -280,6 +284,7 @@ export function toFlow(
   const connectedIds = new Set<string>();
   const visibleStories = visibleStoryNames(project, options.focusedStory, options.scope ?? "all");
   const visibleEdgeKinds = edgeKindsForDetail(options.edgeDetail ?? "normal");
+  const actorView = actorVisibility(project, options.actorFilter ?? { actorIds: [], includeUnassigned: false }, options.previousNodes);
 
   if (selectedId) {
     connectedIds.add(selectedId);
@@ -382,7 +387,7 @@ export function toFlow(
       height: nodeHeight
     });
 
-    const scenarios = node.type === "gwt" ? project.nodes.filter((candidate) => candidate.type === "gwt" && (node.sourcePath ? candidate.sourcePath === node.sourcePath : candidate.sliceTitle === node.sliceTitle)).filter((candidate) => !options.diffFilter || options.diffFilter === "all" || options.diffNodeStatus?.[candidate.id] === options.diffFilter) : undefined;
+    const scenarios = node.type === "gwt" ? project.nodes.filter((candidate) => candidate.type === "gwt" && (node.sourcePath ? candidate.sourcePath === node.sourcePath : candidate.sliceTitle === node.sliceTitle)).filter((candidate) => actorView.nodeIds.has(candidate.id) && (!candidate.storyName || visibleStories.has(candidate.storyName))).filter((candidate) => !options.diffFilter || options.diffFilter === "all" || options.diffNodeStatus?.[candidate.id] === options.diffFilter) : undefined;
     return {
       id: node.id,
       type: isContainer ? "groupNode" : "eventModelNode",
@@ -398,26 +403,22 @@ export function toFlow(
         selectedScenarioId: selectedId,
         selected: node.id === selectedId || Boolean(scenarios?.some((scenario) => scenario.id === selectedId)),
         connected: connectedIds.has(node.id),
+        actorRelated: actorView.relatedNodeIds.has(node.id),
         diffStatus: options.diffNodeStatus?.[node.id]
       },
-      hidden: Boolean(scenarios && scenarios[0]?.id !== node.id) || Boolean(node.storyName && !visibleStories.has(node.storyName)) ||
+      hidden: !actorView.nodeIds.has(node.id) || Boolean(scenarios && scenarios[0]?.id !== node.id) || Boolean(node.storyName && !visibleStories.has(node.storyName)) ||
         Boolean(!scenarios && options.diffFilter && options.diffFilter !== "all" && options.diffNodeStatus?.[node.id] !== options.diffFilter),
       style: isContainer
-        ? { width, height, zIndex: node.type === "story" ? -20 : -10, opacity: node.storyName && !visibleStories.has(node.storyName) ? 0.18 : 1 }
-        : { width: nodeWidth, height: node.type === "gwt" ? GWT_HEIGHT : undefined, opacity: node.storyName && !visibleStories.has(node.storyName) ? 0.18 : 1 },
+        ? { width, height, zIndex: node.type === "story" ? -20 : -10, opacity: actorView.relatedNodeIds.has(node.id) ? 0.72 : 1 }
+        : { width: nodeWidth, height: node.type === "gwt" ? GWT_HEIGHT : undefined, opacity: actorView.relatedNodeIds.has(node.id) ? 0.72 : 1 },
       ...nodeDefaults(node)
     };
   });
 
+  const visibleNodeIds = new Set(nodes.filter((node) => !node.hidden).map((node) => node.id));
   const visibleEdges = project.edges
     .filter((edge) => visibleEdgeKinds.has(edge.kind))
-    .filter((edge) => {
-      const source = nodeById.get(edge.source);
-      const target = nodeById.get(edge.target);
-      const sourceVisible = !source?.storyName || visibleStories.has(source.storyName);
-      const targetVisible = !target?.storyName || visibleStories.has(target.storyName);
-      return sourceVisible && targetVisible;
-  });
+    .filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
   const edges = visibleEdges.map((edge) => {
     const sourceNode = nodeById.get(edge.source);
     const targetNode = nodeById.get(edge.target);

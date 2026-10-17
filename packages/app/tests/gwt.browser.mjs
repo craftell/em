@@ -824,3 +824,151 @@ test("GWT Old version disables feedback while preserving the current-node draft"
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
+
+function actorModel() {
+  const project = model(4);
+  project.root = "actor-model";
+  project.actors = [
+    { id: "customer", name: "Customer", color: "#2563eb" },
+    { id: "auditor", name: "Auditor", color: "#7c3aed" },
+    { id: "admin", name: "Admin", color: "#b45309" }
+  ];
+  for (const [index, ids] of [[0, ["customer", "auditor"]], [1, ["admin"]]]) {
+    project.nodes.push({
+      id: "screen-" + index, type: "screen", label: "Screen " + index,
+      sourcePath: "slice-" + index + ".yaml", storyName: project.stories[index].name,
+      actors: ids, actorDefinitions: project.actors.filter((actor) => ids.includes(actor.id))
+    });
+  }
+  for (const id of ["system", "system-next", "unassigned"]) {
+    const path = id + ".yaml";
+    project.slices.push({ title: id, path, storyName: "First" });
+    project.stories[0].slices.push(path);
+    const shared = { sourcePath: path, sliceTitle: id, storyName: "First" };
+    project.nodes.push(
+      { ...shared, id, type: "slice", label: id },
+      { ...shared, id: id + "-screen", type: id === "unassigned" ? "screen" : "processor", label: id, actors: id === "unassigned" ? [] : ["customer"], actorDefinitions: project.actors.slice(0, 1) },
+      { ...shared, id: id + "-query", type: "query", label: "Read " + id },
+      { ...shared, id: id + "-command", type: "command", label: "Run " + id },
+      { ...shared, id: id + "-gwt", type: "gwt", label: "Check " + id }
+    );
+  }
+  project.nodes.push(...["actor-started", "actor-processed", "actor-finished"].map((id) => ({ id, type: "event", label: id })));
+  project.edges.push(
+    { id: "actor-start", kind: "command-event", source: "command-0", target: "actor-started" },
+    { id: "actor-read", kind: "event-query", source: "actor-started", target: "system-query" },
+    { id: "actor-process", kind: "command-event", source: "system-command", target: "actor-processed" },
+    { id: "actor-next-read", kind: "event-query", source: "actor-processed", target: "system-next-query" },
+    { id: "actor-finish", kind: "command-event", source: "system-next-command", target: "actor-finished" }
+  );
+  return project;
+}
+
+test("actor chips and OR filters retain one neighboring system flow in live and saved views", async () => {
+  const project = actorModel();
+  const live = await open(4, () => project);
+  const saved = await openSaved(await savedHtml(project));
+  try {
+    for (const page of [live.page, saved.page]) {
+      const screen = page.locator('[data-id="screen-0"]');
+      assert.deepEqual(await screen.locator(".actor-name").allTextContents(), ["Customer", "Auditor"]);
+      assert.equal(await screen.locator('[data-actor-id="customer"]').evaluate((element) => getComputedStyle(element).borderColor), "rgb(37, 99, 235)");
+      assert.equal(await screen.locator(".em-node-screen").evaluate((element) => getComputedStyle(element).backgroundColor), "rgb(248, 250, 252)");
+      const processor = page.locator('[data-id="system-screen"]');
+      assert.equal(await processor.locator(".actor-chip").count(), 0);
+      assert.equal(await processor.locator(".em-node-processor").evaluate((element) => getComputedStyle(element).backgroundColor), "rgb(31, 41, 55)");
+      const initial = new Map((await geometry(page)).nodes.map(([id, transform]) => [id, transform]));
+      const filter = page.locator(".actor-filter");
+      await filter.locator("summary").click();
+      await filter.getByRole("checkbox", { name: "Customer (customer)", exact: true }).check();
+      await page.locator('[data-id="screen-1"]').waitFor({ state: "detached" });
+      for (const id of ["screen-0", "command-0", "gwt-0-0", "system-screen", "system-query", "system-command", "system-gwt", "actor-started", "actor-processed"]) {
+        assert.equal(await page.locator('[data-id="' + id + '"]').count(), 1, id + " remains visible");
+      }
+      for (const id of ["system-next-screen", "system-next-command", "actor-finished", "unassigned-screen"]) {
+        assert.equal(await page.locator('[data-id="' + id + '"]').count(), 0, id + " stays outside bounded context");
+      }
+      assert.equal(await page.locator('[data-id="system"] .actor-related-badge').textContent(), "Related");
+      assert.equal(await processor.locator(".actor-chip").count(), 0);
+      assert.equal(await page.locator('[data-id="system-command"]').evaluate((element) => element.style.opacity), "0.72");
+      for (const [id, transform] of (await geometry(page)).nodes) assert.equal(transform, initial.get(id), id + " keeps its position");
+      const visibleIds = new Set(await page.locator(".react-flow__node").evaluateAll((nodes) => nodes.map((node) => node.dataset.id)));
+      const edgeIds = await page.locator(".react-flow__edge").evaluateAll((edges) => edges.map((edge) => edge.dataset.id));
+      for (const edge of project.edges.filter((edge) => edgeIds.includes(edge.id))) {
+        assert.ok(visibleIds.has(edge.source) && visibleIds.has(edge.target), edge.id + " has two visible endpoints");
+      }
+      await filter.getByRole("checkbox", { name: "Admin (admin)", exact: true }).check();
+      await page.locator('[data-id="screen-1"]').waitFor();
+      assert.equal(await page.locator('[data-id="screen-0"]').count(), 1);
+      await filter.getByRole("button", { name: "Clear actors", exact: true }).click();
+      await page.locator('[data-id="system-next-screen"]').waitFor();
+      assert.equal(await filter.locator("summary").textContent(), "Actors · All");
+      await filter.getByRole("checkbox", { name: "Unassigned screens", exact: true }).check();
+      await page.locator('[data-id="screen-0"]').waitFor({ state: "detached" });
+      assert.equal(await page.locator('[data-id="unassigned-screen"]').count(), 1);
+      assert.equal(await page.locator('[data-id="system-screen"]').count(), 0);
+      await filter.getByRole("button", { name: "Clear actors", exact: true }).click();
+      await filter.locator("summary").focus();
+      await page.keyboard.press("Escape");
+      assert.equal(await filter.evaluate((element) => element.open), false);
+    }
+    assert.deepEqual(live.errors, []);
+    assert.deepEqual(saved.requests, []);
+  } finally { await live.page.close(); await saved.page.close(); }
+});
+
+test("actor selections survive refresh, prune vanished actors and reset for a new project root", async () => {
+  const { page, errors, refresh } = await openFeedbackSession(actorModel());
+  try {
+    const filter = page.locator(".actor-filter");
+    await filter.locator("summary").click();
+    await filter.getByRole("checkbox", { name: "Customer (customer)", exact: true }).check();
+    await filter.getByRole("checkbox", { name: "Admin (admin)", exact: true }).check();
+    await refresh(actorModel());
+    assert.equal(await filter.getByRole("checkbox", { name: "Customer (customer)", exact: true }).isChecked(), true);
+    const next = actorModel();
+    next.actors = next.actors.filter((actor) => actor.id !== "customer");
+    for (const node of next.nodes) {
+      node.actors = node.actors?.filter((id) => id !== "customer");
+      node.actorDefinitions = node.actorDefinitions?.filter((actor) => actor.id !== "customer");
+    }
+    await refresh(next);
+    await filter.getByRole("checkbox", { name: "Customer (customer)", exact: true }).waitFor({ state: "detached" });
+    await page.waitForFunction(() => document.querySelector(".actor-filter summary").textContent === "Actors · 1");
+    assert.equal(await filter.getByRole("checkbox", { name: "Admin (admin)", exact: true }).isChecked(), true);
+    assert.equal(await page.locator('[data-id="screen-0"]').count(), 0);
+    await refresh({ ...actorModel(), root: "another-project" });
+    await page.waitForFunction(() => document.querySelector(".actor-filter summary").textContent === "Actors · All");
+    await page.locator('[data-id="screen-0"]').waitFor();
+    assert.equal(await filter.getByRole("checkbox", { name: "Admin (admin)", exact: true }).isChecked(), false);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("diff actor filtering preserves former membership and frozen Old version chips", async () => {
+  const { diffEventModelProjects } = await server.ssrLoadModule("../graph/src/index.ts");
+  const base = actorModel();
+  const target = structuredClone(base);
+  target.actors = target.actors.filter((actor) => actor.id !== "customer");
+  const screen = target.nodes.find((node) => node.id === "screen-0");
+  screen.actors = ["admin"];
+  screen.actorDefinitions = [target.actors.find((actor) => actor.id === "admin")];
+  const { project, diff } = diffEventModelProjects(base, target);
+  const { page, errors } = await open(4, () => project, diff);
+  try {
+    const filter = page.locator(".actor-filter");
+    await filter.locator("summary").click();
+    await filter.getByRole("checkbox", { name: "Customer (customer)", exact: true }).check();
+    await page.locator('[data-id="screen-1"]').waitFor({ state: "detached" });
+    const displayed = page.locator('[data-id="screen-0"]');
+    assert.deepEqual(await displayed.locator(".actor-name").allTextContents(), ["Admin"]);
+    await displayed.click({ force: true });
+    const details = page.getByRole("complementary", { name: "Node details" });
+    await details.getByRole("button", { name: "Old version", exact: true }).click();
+    assert.deepEqual(await details.locator(".actor-name").allTextContents(), ["Customer", "Auditor"]);
+    assert.equal(await details.locator('[data-actor-id="customer"]').evaluate((element) => getComputedStyle(element).borderColor), "rgb(37, 99, 235)");
+    await details.getByRole("button", { name: "New version", exact: true }).click();
+    assert.deepEqual(await details.locator(".actor-name").allTextContents(), ["Admin"]);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
