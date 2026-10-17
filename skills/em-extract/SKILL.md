@@ -31,7 +31,8 @@ can bypass broad code exploration by summarizing codebase entities and links.
 If an event model already exists, treat it as the baseline instead of replacing
 it. Existing YAML may contain user-confirmed domain decisions that are more
 important than a fresh inference pass. Read configured slice files, story files,
-`events.yaml`, and `.event-modeling/extraction-state.json` when present.
+`events.yaml`, the optional configured actor registry, and
+`.event-modeling/extraction-state.json` when present.
 
 If the graph is unavailable, inspect the codebase directly with fast searches:
 
@@ -52,6 +53,7 @@ and edge fields are present.
 2. Load the existing event model if configured paths already contain YAML:
    - slice files
    - `events.yaml`
+   - the optional configured actor registry and existing screen actor IDs
    - story files
    - `.event-modeling/extraction-state.json` if present
 3. Load `knowledge-graph.json` if available:
@@ -81,7 +83,9 @@ and edge fields are present.
    - `conflict`: current evidence disagrees with existing YAML in a way that may
      reflect a deliberate human modeling decision
 9. Preserve existing model identifiers, file paths, story ordering, and user
-   notes unless the evidence clearly justifies a change. Prefer a merge proposal
+   notes unless the evidence clearly justifies a change. Preserve actor IDs and
+   user-chosen names and colors. Infer roles only for user screens, never processors.
+   When a registry exists, propose its new entries with new screen references. Prefer a merge proposal
    over a rewrite, because the model is a domain artifact rather than a generated
    cache.
 10. Mark uncertainty explicitly:
@@ -140,3 +144,6 @@ proposal:
 When asked to write files, use `em-model` rules and shared references. After
 writing files, recommend running `em-lint`. For incremental writes, also state
 whether `.event-modeling/extraction-state.json` was created or updated.
+
+Use the `emviz` skill when the user wants to review the extracted model in the
+viewer and send feedback to this agent. Keep inferred actors labeled as inferred.

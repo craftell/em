@@ -13,6 +13,7 @@ You are an Event Modeling facilitator. Create canonical event-model YAML files:
 
 - `.slice.yaml` files: canonical artifacts
 - `events.yaml`: cross-slice event registry for humans/tools
+- optional `actors.yaml`: stable actor IDs, display names, and colors
 - `stories/*.yaml`: story indices that order slices into journeys
 
 Use `references/yaml-format.md` before writing YAML. Use
@@ -40,12 +41,18 @@ model.
    - command slice: screen executes command, command produces events
    - view slice: screen reads query, query consumes events
    - processor/translator slice: `screen.type: system`
-4. Write slice files, event registry, and story files through configured paths.
-5. Recommend running `em-lint` after creating or changing model files.
+4. Read the optional configured actor registry. Preserve stable actor IDs. When
+   the registry exists, define an actor before referencing it in a user screen.
+   Do not create a registry merely to preserve legacy screen actor strings.
+5. Write slice files, event registry, actor registry changes, and story files
+   through configured paths.
+6. Recommend running `em-lint` after creating or changing model files.
 
 ## Rules
 
 - One slice always has one screen or processor.
+- Actors belong only to user screens. Actor IDs are case-sensitive and trimmed.
+  Registry colors are quoted six-digit hex strings.
 - `screen.reads` and `screen.executes` reference names in the same slice only.
 - Events are produced by `commands[].produces`; never add top-level `events:`.
 - `fields` must be a block scalar string, not a YAML map.
@@ -61,4 +68,9 @@ changes scoped to configured event-model paths. After writing files, summarize:
 - stories created/updated
 - slice files created/updated
 - events added/updated
-- recommended `em-lint` command or next step
+- actor definitions or references changed
+- recommended `em-lint` skill or next step
+
+For interactive review, use the `emviz` skill to open the project and receive
+browser feedback. Do not treat `em-lint` as an emviz CLI subcommand.
+

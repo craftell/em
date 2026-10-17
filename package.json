@@ -14,7 +14,7 @@
     "release:minor": "node scripts/release.mjs minor",
     "release:major": "node scripts/release.mjs major",
     "skills:sync": "node scripts/sync-skill-references.mjs",
-    "skills:validate": "python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-model && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-lint && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-extract"
+    "skills:validate": "python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-model && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-lint && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-extract && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/em-feedback && python ~/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/emviz"
   },
   "devDependencies": {
     "@types/node": "24.13.2",

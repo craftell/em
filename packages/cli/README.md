@@ -89,7 +89,12 @@ Feedback is unavailable for removed, stale, or ambiguous selections, for disconn
 
 ## Agent workflow
 
-The [em-feedback skill](../../skills/em-feedback/SKILL.md) gives the full agent procedure. The agent opens the project, gives the user the URL, polls, handles one request, replies, and polls again.
+The [emviz skill](../../skills/emviz/SKILL.md) gives the full agent procedure.
+The existing [em-feedback skill](../../skills/em-feedback/SKILL.md) delegates to it. The agent opens the project, gives the user the URL, polls, handles one request, replies, and polls again.
+
+Idle poll timeouts continue the loop. The agent must stay active or use a supported
+continuation mechanism. A detached server does not wake an idle LLM, and a skill
+file alone cannot provide background execution.
 
 The agent preserves unrelated file edits and does not commit, reset, or stash automatically. Restarting the server discards history, so an interrupted agent must re-read the project before continuing.
 

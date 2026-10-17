@@ -1,0 +1,35 @@
+{
+  "skill_name": "emviz",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Use emviz to open this project's Event Model and keep handling feedback. The first two polls return timeout and the third returns a request.",
+      "expected_output": "Opens once, shares only the URL, uses one stable agent ID and one foreground poll, continues after both timeouts, re-reads canonical YAML, handles and replies to the request, then polls again.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Resume my existing emviz feedback session. I clicked Resume session. Preserve my manual YAML changes.",
+      "expected_output": "Reuses this agent's verified live connection instead of opening another server, re-reads current files, preserves manual changes, and resumes polling. Does not take over another agent's session.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Make the selected user screen accessible to Support with a purple tag. The project has an actor registry and the captured source has changed on disk.",
+      "expected_output": "Checks the current source and selection before editing, requests a current selection when stale, preserves stable actor IDs and colors, registers a new referenced ID if needed, and never assigns user actors to processors.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Stop feedback but leave the viewer open. A YAML edit finished before the stop arrived.",
+      "expected_output": "Stops the feedback loop without undoing the edit or closing unrelated processes, reports the completed change, and explains Resume session plus resuming the agent poll.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Keep monitoring browser feedback after you finish this turn. Your host cannot run another tool or wake you once you finish.",
+      "expected_output": "Does not promise background monitoring. Explains that the detached viewer cannot process LLM requests and that the agent must stay active or be resumed.",
+      "files": []
+    }
+  ]
+}
