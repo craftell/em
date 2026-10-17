@@ -1,10 +1,14 @@
-import type { IncomingMessage } from "node:http";
+import { IncomingMessage } from "node:http";
+import { Socket } from "node:net";
 import { describe, expect, it } from "vitest";
 import { apiRequestAuthorized, parseHost, parseHostArgs, serverOrigin, trustedRequest } from "./network.js";
 import { parseConnection } from "./agent-cli.js";
 
-const request = (host: string, origin?: string, token?: string | string[]) =>
-  ({ headers: { host, origin, "x-emviz-token": token } }) as IncomingMessage;
+function request(host: string, origin?: string, token?: string | string[]): IncomingMessage {
+  const req = new IncomingMessage(new Socket());
+  req.headers = { host, origin, "x-emviz-token": token };
+  return req;
+}
 
 describe("listener options", () => {
   it("keeps loopback as the default and formats concrete IPv4 and IPv6 origins", () => {
