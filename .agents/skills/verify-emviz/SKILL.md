@@ -8,7 +8,7 @@ description: >-
 
 # Verify emviz
 
-The core feedback journey passed on 2026-10-17 at `cac6de2`, including the merged host-aware API helpers, two-node batches, reload recovery, GWT feedback, frozen diffs, stop, resume, close, and offline export. Screenshots, ARIA snapshots, videos, trace, CLI output, and canonical YAML survived cleanup. Evidence is retained outside the checkout at `/home/kfukuyama/fm-homes/personal/data/agent-sidebar-queue/browser/2026-10-17T15-27-44-061Z-85a35766/`.
+The core feedback journey passed on 2026-10-18 at `d8cb291`, including the merged host-aware API helpers, two-node batches, reload recovery, GWT feedback, frozen diffs, stop, resume, close, and offline export. Screenshots, ARIA snapshots, videos, trace, CLI output, and canonical YAML survived cleanup. Evidence is retained outside the checkout at `/home/kfukuyama/fm-homes/personal/data/emviz-0.5.0/browser/2026-10-18T12-36-22-490Z-cc95f06f/`.
 
 The app browser suite also passed all 17 cases, including queue editing, removal, exact retry after an uncertain response and reload, GWT navigation, and actor fixtures. The full real-server actor journey and two-machine remote-access journey remain unexecuted. Their feature files keep their draft labels.
 

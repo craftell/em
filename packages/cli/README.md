@@ -156,4 +156,4 @@ The agent preserves unrelated file edits and does not commit, reset, or stash au
 
 ## Verification
 
-The [verify-emviz guide](../../.agents/skills/verify-emviz/SKILL.md) is DRAFT and unexecuted for this change. Its browser script starts an isolated project and real CLI processes. It records screenshots, video, a Playwright trace, CLI output, and canonical file contents outside the disposable project.
+The [verify-emviz guide](../../.agents/skills/verify-emviz/SKILL.md) records the executed local real-server feedback journey and the 17 fixture browser cases. The real-server actor journey, two-machine remote-access journey, and the full startup-baseline fallback browser journey remain unexecuted. Those local checks do not start a real LLM. Its browser script starts an isolated project and real CLI processes. It records screenshots, video, a Playwright trace, CLI output, and canonical file contents outside the disposable project.

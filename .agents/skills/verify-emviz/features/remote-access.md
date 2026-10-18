@@ -11,7 +11,7 @@ actual Tailscale IP from the operator. Do not change network access or firewall
 rules as part of this journey.
 
 Build the current source with the repository's normal build command. Confirm
-that the built CLI's help lists `--host`. Published emviz 0.4.0 lacks this option.
+that the built CLI's help lists `--host`. emviz 0.4.0 lacks this option. The 0.5.0 pin includes it.
 
 ## Remote viewer
 
