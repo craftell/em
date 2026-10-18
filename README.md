@@ -95,7 +95,7 @@ The distributable skills live under `skills/`. Ask your running agent to use
 `emviz`, or invoke `/emviz` if your agent supports slash commands. Install all
 companion skills so modeling and validation references are available. Installing
 skills does not install the CLI. The launcher uses a project-local CLI or
-`npx emviz@0.4.0` when package execution is permitted.
+`npx emviz@0.5.0` when package execution is permitted.
 
 ## Usage
 
@@ -315,7 +315,7 @@ pnpm build
 node packages/cli/dist/index.js .
 ```
 
-The feedback verification guide is a [DRAFT](.agents/skills/verify-emviz/SKILL.md). Its real-browser script has not been run during this change.
+The [verify-emviz guide](.agents/skills/verify-emviz/SKILL.md) records the executed local real-server feedback journey and the 17 fixture browser cases. The real-server actor journey, two-machine remote-access journey, and the full startup-baseline fallback browser journey remain unexecuted. Those local checks do not start a real LLM.
 
 ## Package Layout
 

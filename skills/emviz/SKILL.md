@@ -19,7 +19,7 @@ install a model provider, or ask for model API keys.
    Read its configuration and existing model before choosing an editing scope.
    If no model exists, use `em-model` or `em-extract` first.
 2. Use the project's installed emviz CLI when available. Otherwise use
-   `npx emviz@0.4.0` if package execution is permitted. Check the selected CLI
+   `npx emviz@0.5.0` if package execution is permitted. Check the selected CLI
    with `--help` for `open`, `poll`, `reply`, `stop`, and `close`.
    If they are absent, report the required upgrade rather than using viewer-only
    mode for feedback. Do not install or upgrade silently when approval is required.
@@ -27,14 +27,14 @@ install a model provider, or ask for model API keys.
    project's normal build. The repository's own Event Model can be opened with
    `.`. Do not build or change environments without permission.
 4. Keep the same command prefix for every command below. Examples use
-   `npx emviz@0.4.0`; substitute the selected local executable when appropriate.
+   `npx emviz@0.5.0`; substitute the selected local executable when appropriate.
 
 ## Open or resume
 
 For a new session, run once in the foreground:
 
 ```sh
-npx emviz@0.4.0 open "$PROJECT_DIR"
+npx emviz@0.5.0 open "$PROJECT_DIR"
 ```
 
 Read the returned JSON. Retain `url`, `token`, and `pid` privately. Give the
@@ -48,9 +48,9 @@ loopback. The first poll connects this agent. Do not claim that feedback is
 connected before polling.
 
 Use `--host <IP>` only when the user explicitly requests remote access and the
-host permits it. Check the selected CLI's `--help` first. The pinned 0.4.0 release
-does not include this option; use a build that advertises `--host` rather than
-silently upgrading. Ask for the server machine's concrete Tailscale IP if unknown.
+host permits it. Check the selected CLI's `--help` first. The pinned 0.5.0 release
+includes this option. If `--help` does not list `--host`, report the required
+upgrade rather than silently changing the selected CLI. Ask for the server machine's concrete Tailscale IP if unknown.
 Never guess that address or select all interfaces. Pass the requested address
 to `open`. Wildcards and DNS bind names are rejected.
 
@@ -81,7 +81,7 @@ plus command startup. If the tool yields a process handle, wait on that same
 process until it exits rather than starting a second poll.
 
 ```sh
-npx emviz@0.4.0 poll --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
+npx emviz@0.5.0 poll --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
 ```
 
 Each poll waits up to 25 seconds and returns one JSON result.
@@ -134,7 +134,7 @@ A detached viewer or a background shell loop alone cannot process feedback.
    correct shell quoting for reply text. Never interpolate feedback as shell code.
 
 ```sh
-npx emviz@0.4.0 reply "$REQUEST_ID" "$REPLY_TEXT" --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
+npx emviz@0.5.0 reply "$REQUEST_ID" "$REPLY_TEXT" --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
 ```
 
 Keep replies under 8,000 characters. State the changes, checks, and unresolved
@@ -165,7 +165,7 @@ in diff views.
 When the user asks to stop feedback, run:
 
 ```sh
-npx emviz@0.4.0 stop --url "$URL" --token "$TOKEN"
+npx emviz@0.5.0 stop --url "$URL" --token "$TOKEN"
 ```
 
 Exit the loop. Stopping preserves files and leaves the viewer open. The user can
@@ -174,7 +174,7 @@ choose **Resume session**, then ask this agent to resume polling.
 When the user asks to close the viewer, run:
 
 ```sh
-npx emviz@0.4.0 close --url "$URL" --token "$TOKEN"
+npx emviz@0.5.0 close --url "$URL" --token "$TOKEN"
 ```
 
 Close only the server this agent opened. Never kill unrelated Node or emviz
