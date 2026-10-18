@@ -1,6 +1,6 @@
 # emviz verification map
 
-The core feedback journey and all 17 app browser cases passed on 2026-10-18 on the emviz 0.5.0 release-preparation tree. See the [verification skill](../SKILL.md) for retained evidence. Real-server actor and two-machine remote-access journeys remain unexecuted.
+The core feedback journey and all 17 app browser cases passed on 2026-10-18 at `d8cb291`. See the [verification skill](../SKILL.md) for retained evidence. Real-server actor and two-machine remote-access journeys remain unexecuted.
 
 The [verification skill](../SKILL.md) owns launch, doctor, evidence, and cleanup. Read it before driving a feature.
 
