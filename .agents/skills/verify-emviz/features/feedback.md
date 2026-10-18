@@ -1,42 +1,47 @@
-# Send feedback and receive a reply
+# Queue feedback and receive a batch reply
 
-A user sends a message about a selected node to an agent that they started separately. The agent edits canonical YAML and replies through the CLI.
+A user collects messages about selected nodes in the Agent sidebar. The browser sends them together only after the user chooses Send to Agent.
 
 ## Sub-features
 
-- `feedback-connect` connects one stable agent ID through a foreground poll.
-- `feedback-send` queues the selected node and message.
-- `feedback-claim` returns the request to the external CLI.
-- `feedback-reply` shows the reply and the resulting file edit.
-- `feedback-busy` prevents a second active request.
+- `feedback-tabs` keeps Details inspection separate from Agent controls.
+- `feedback-connect` reports the external agent's poll activity.
+- `feedback-queue` captures each node, reference, revision, and message without sending.
+- `feedback-edit` edits message text or removes an unsent item without changing its target.
+- `feedback-send` submits one ordered batch.
+- `feedback-retry` preserves the exact batch ID and contents through an uncertain response.
+- `feedback-reply` records one reply and frozen turn for the batch.
 
-## How to get to it (user POV)
+## How to get to it
 
-- Select a current ordinary node and use **Node feedback** in **Node details**.
-- Select an actual GWT scenario and use the same form.
-- Start an agent with the `em-feedback` skill and its `emviz poll` loop.
+Select a current node, then open the **Agent** tab in the right sidebar. **Details** remains the default tab and retains source, connections, fields, findings, and GWT inspection.
 
-## Driving it with Playwright and the CLI
+## Drive with Playwright and the CLI
 
-Preconditions:
+Use the owned fixture after Doctor passes. Keep one agent ID and one foreground poll.
 
-- Doctor passes for the owned fixture.
-- No request is queued or working.
-- Keep one agent ID for the whole test.
+1. Open `page.getByRole("tab", { name: "Agent", exact: true })`. Before starting the CLI poll, verify **Agent disconnected** even though the viewer refreshes.
+2. Run `emviz poll` with the owned URL, token, and agent ID. Verify **Agent connected**.
+3. Select **PlaceOrder**. Fill the **Feedback message** textarea in the **Node feedback** form. Click **Add to Queue**.
+4. Read the real session snapshot. It must still be idle. Queueing must not release the waiting agent poll.
+5. Select **OrderStatus**, open **Agent**, and queue its message. Choose **Refresh**, then reload the page and reopen **Agent**. The **Feedback Queue** region must retain both items without sending.
+6. Click **Send to Agent**. The real CLI poll must return one request whose ordered `items` preserve both node IDs, messages, references, and revisions.
+7. Verify **Working**. Edit both canonical targets, validate the files, and reply once with the returned request ID.
+8. Open **Feedback history**. Verify the reply text and read both file edits back.
+9. Complete another turn for **Duplicate order**. Confirm the first batch did not silently include any later draft.
 
-- **Connect.** Run `node packages/cli/dist/index.js poll --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"` in a child process. The **Feedback session** region reports **Agent connected**.
-- **Send.** Select **PlaceOrder**. Fill `page.getByRole("form", { name: "Node feedback" }).getByLabel("Feedback message", { exact: true })`. Click its exact **Send feedback** button. The CLI returns `status: "request"` with the same message, node ID, source path, and project root.
-- **Claim.** Check that the session reaches **Working**. **Send feedback** is disabled while the request is active. Save the CLI result and a browser screenshot.
-- **Edit.** Add `customerId: uuid` to the canonical command fields in the temporary slice. Read the file back to confirm the edit.
-- **Reply.** Run `node packages/cli/dist/index.js reply "$REQUEST_ID" "$TEXT" --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"`. Open the summary beginning **Feedback history (**. The list item `li[data-request-id="..."] .feedback-reply` contains the reply.
-- **Repeat for GWT.** Poll again with the same ID. Select **Duplicate order** and request the description change. The claimed request identifies that GWT node. Edit its canonical description, reply, and read the file back.
-- **Evidence.** Keep screenshots before Send, while Working, and after the reply. Save the actual request and reply CLI output plus before-and-after YAML.
+The app browser suite verifies Edit, Remove, selection changes, reload recovery, stopped sessions, and an uncertain Send. Its retry case uses intercepted responses and requires identical batch IDs, item IDs, targets, revisions, and messages after reload. It does not replace the real CLI journey. Queue and server unit suites cover stale revisions and whole-batch rejection.
 
-## Gotchas
+Use **Search event model** and assert the composer heading before queueing an offscreen node. Do not force-click a graph node behind the sidebar. A stale item must stay visible and must not be silently rebased.
 
-- A poll timeout is a normal result. Poll again.
-- One agent must not have two polls in flight. A second active agent must not take over a working request.
-- Messages are limited to 4,000 characters and replies to 8,000 characters. HTTP bodies have a 32 KiB limit.
-- Editing files while a request is queued can invalidate the selection before claim. Start with a fresh selection.
-- An invalid YAML edit causes reply rejection. Keep the request working, fix the file, and retry the same reply.
-- Never replace the real CLI with an intercepted browser API response.
+## Evidence
+
+Keep screenshots before Send, while Working, and after the reply. Save the actual CLI request and reply plus before-and-after YAML. Record Details and Agent at desktop and narrow widths. Verify no floating session panel covers the sidebar.
+
+## Limits and failure cases
+
+A batch accepts 1 to 20 items, at most 4,000 characters per message, and 16,000 message characters in total. The batch HTTP body limit is 128 KiB. Other routes retain 32 KiB. Replies accept 8,000 characters.
+
+The server rejects the whole batch if any captured revision or reference changed. A model edit before claim cancels the whole submitted turn. Stop cancels submitted work and preserves browser-local drafts and queue items. It cannot stop an external process or undo its edits.
+
+A poll timeout means poll again. An invalid YAML edit causes reply rejection. Fix the file and retry the same reply without repeating edits. Never replace the real CLI journey with intercepted responses.

@@ -19,8 +19,9 @@ import { apiFetch } from "./api";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
 import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
-import { FeedbackComposer, FeedbackSessionBar, useFeedbackSession, type SessionController } from "./feedback";
-import { connectionsAfter, connectionsBefore, feedbackDraftKey, previousNodeFor, resolveSelection, selectionForNode, updateFeedbackDraft, type FeedbackDrafts, type FeedbackView, type NodeSelection } from "./feedbackState";
+import { AgentPanel, useFeedbackSession, type SessionController } from "./feedback";
+import { emptyFeedbackWorkspace, reconcileFeedbackQueue, restoreFeedbackWorkspace, serializeFeedbackWorkspace, type FeedbackQueue, type FeedbackWorkspace } from "./feedbackQueue";
+import { connectionsAfter, connectionsBefore, feedbackDraftKey, previousNodeFor, resolveSelection, selectionForNode, updateFeedbackDraft, type FeedbackView, type NodeSelection } from "./feedbackState";
 import type { EventModelProject, FieldFlow, GraphDiff, GraphDiffStatus, ProjectNode, ValidationFinding, ValidationReport } from "./types";
 import { loadEventModelProjectFromFiles, type InMemoryEventModelFile } from "@emviz/parser/browser";
 import { validateEventModelProject as validateImportedProject } from "@emviz/validator/browser";
@@ -511,6 +512,24 @@ function ImportPanel({
   );
 }
 
+type InspectorTab = "details" | "agent";
+
+function InspectorTabs({ tab, onTab }: { tab: InspectorTab; onTab: (tab: InspectorTab) => void }) {
+  return <div className="inspector-tabs" role="tablist" aria-label="Inspector">
+    {(["details", "agent"] as const).map((name) => <button type="button" key={name}
+      id={"inspector-tab-" + name} role="tab" aria-selected={tab === name}
+      aria-controls={"inspector-" + name} tabIndex={tab === name ? 0 : -1}
+      onClick={() => onTab(name)}
+      onKeyDown={(event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? "details" : event.key === "End" ? "agent" : name === "details" ? "agent" : "details";
+        onTab(next);
+        requestAnimationFrame(() => document.getElementById("inspector-tab-" + next)?.focus());
+      }}>{name === "details" ? "Details" : "Agent"}</button>)}
+  </div>;
+}
+
 function SourcePanel({
   project,
   selectedNode: currentNode,
@@ -526,11 +545,11 @@ function SourcePanel({
   onGwtList,
   onClose,
   onFocusNode,
-  session,
-  view,
-  draftMessage,
-  onDraftChange,
-  onDraftSent
+  tab,
+  onTab,
+  agentPanel,
+  oldVersionId,
+  onVersion
 }: {
   project: EventModelProject;
   selectedNode?: ProjectNode;
@@ -546,13 +565,12 @@ function SourcePanel({
   onGwtList: (id: string) => void;
   onClose: () => void;
   onFocusNode: (id: string) => void;
-  session?: SessionController;
-  view: FeedbackView;
-  draftMessage: string;
-  onDraftChange: (message: string) => void;
-  onDraftSent: (message: string) => void;
+  tab: InspectorTab;
+  onTab: (tab: InspectorTab) => void;
+  agentPanel: React.ReactNode;
+  oldVersionId?: string;
+  onVersion: (nodeId: string | undefined) => void;
 }) {
-  const [oldVersionId, setOldVersionId] = useState<string>();
   const previousNode = previousNodeFor(diff, currentNode);
   const selectedNode = currentNode && previousNode && oldVersionId === currentNode?.id ? { ...previousNode, id: currentNode.id } : currentNode;
   const [copied, setCopied] = useState<string>();
@@ -562,7 +580,7 @@ function SourcePanel({
   const showingList = Boolean(gwtList);
   useLayoutEffect(() => {
     if (showingList && listPanel.current) listPanel.current.scrollTop = listScroll.current;
-  }, [showingList]);
+  }, [showingList, tab]);
   const stopPanelKeys = (event: React.KeyboardEvent) => {
     if (event.key !== "Escape") event.stopPropagation();
   };
@@ -574,10 +592,19 @@ function SourcePanel({
     });
   }, []);
 
+  const tabs = <InspectorTabs tab={tab} onTab={onTab} />;
+  if (tab === "agent") {
+    return <aside id="inspector-agent" className="panel panel-right agent-panel" aria-label="Agent" onKeyDown={stopPanelKeys} onKeyUp={stopPanelKeys}>
+      {tabs}
+      {agentPanel}
+    </aside>;
+  }
+
   if (gwtList) {
     const needle = nameFilter.trim().toLowerCase();
     const results = gwtList.filter((scenario) => scenario.label.toLowerCase().includes(needle));
-    return <aside ref={listPanel} className="panel panel-right gwt-panel" aria-label="GWT scenarios" onKeyDown={stopPanelKeys} onKeyUp={stopPanelKeys} onScroll={(event) => { listScroll.current = event.currentTarget.scrollTop; }}>
+    return <aside ref={listPanel} id="inspector-details" className="panel panel-right gwt-panel" aria-label="GWT scenarios" onKeyDown={stopPanelKeys} onKeyUp={stopPanelKeys} onScroll={(event) => { listScroll.current = event.currentTarget.scrollTop; }}>
+      {tabs}
       <button type="button" onClick={onClose}>Close</button>
       <h2>{gwtList[0]?.sliceTitle} · All scenarios ({gwtList.length})</h2>
       <div className="gwt-filter">
@@ -605,7 +632,8 @@ function SourcePanel({
 
   if (!selectedNode) {
     return (
-      <aside className="panel panel-right">
+      <aside id="inspector-details" className="panel panel-right" aria-label="Node details">
+        {tabs}
         <h2>Selection</h2>
         <p className="muted">Select a node to inspect source and connections.</p>
       </aside>
@@ -643,7 +671,8 @@ function SourcePanel({
   const prompt = `Please update this event model node.\n\nReference:\n${reference}\n\nSource path:\n${selectedNode.sourcePath ?? "unknown"}\n\nCurrent context:\n${yaml}\n\nGoal:\n`;
 
   return (
-    <aside className={`panel panel-right ${selectedNode.type === "gwt" ? "gwt-panel" : ""}`} aria-label="Node details" onKeyDown={stopPanelKeys} onKeyUp={stopPanelKeys}>
+    <aside id="inspector-details" className={`panel panel-right ${selectedNode.type === "gwt" ? "gwt-panel" : ""}`} aria-label="Node details" onKeyDown={stopPanelKeys} onKeyUp={stopPanelKeys}>
+      {tabs}
       {selectedNode.type === "gwt" ? <div className="gwt-panel-actions"><button type="button" onClick={() => onGwtList(selectedNode.id)}>All scenarios</button><button type="button" onClick={onClose}>Close</button></div> : null}
       <div className="panel-heading">
         <h2>{selectedNode.label}</h2>
@@ -658,8 +687,7 @@ function SourcePanel({
         </button>
       </div>
       {diff && currentNode ? <p>{diff.nodeStatus[currentNode.id]} · {showingBefore ? "Old version" : "New version"}</p> : null}
-      {previousNode ? <div className="gwt-panel-actions" role="group" aria-label="Node version"><button type="button" aria-pressed={oldVersionId !== currentNode?.id} onClick={() => setOldVersionId(undefined)}>New version</button><button type="button" aria-pressed={oldVersionId === currentNode?.id} onClick={() => setOldVersionId(currentNode?.id)}>Old version</button></div> : null}
-      {session?.snapshot && currentNode ? <FeedbackComposer key={feedbackDraftKey(session.snapshot.sessionId, currentNode)} session={session} view={view} node={currentNode} diff={diff} showingBefore={showingBefore} message={draftMessage} onMessageChange={onDraftChange} onSent={onDraftSent} /> : null}
+      {previousNode ? <div className="gwt-panel-actions" role="group" aria-label="Node version"><button type="button" aria-pressed={oldVersionId !== currentNode?.id} onClick={() => onVersion(undefined)}>New version</button><button type="button" aria-pressed={oldVersionId === currentNode?.id} onClick={() => onVersion(currentNode?.id)}>Old version</button></div> : null}
       {selectedNode.type === "gwt" ? <section aria-label="Scenario details">
         {selectedNode.description ? <p>{selectedNode.description}</p> : null}
         <GwtStepList title="Given" items={selectedNode.given} />
@@ -858,7 +886,35 @@ function FlowWorkspace() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [exportState, setExportState] = useState<"idle" | "exporting">("idle");
   const [exportError, setExportError] = useState<string>();
-  const [drafts, setDrafts] = useState<FeedbackDrafts>({});
+  const [feedbackWorkspace, setFeedbackWorkspace] = useState<FeedbackWorkspace>(() => {
+    try {
+      return restoreFeedbackWorkspace(sessionStorage.getItem("emviz:feedback-workspace:v1"));
+    } catch {
+      return emptyFeedbackWorkspace();
+    }
+  });
+  const { drafts, queue } = feedbackWorkspace;
+  const [storageWarning, setStorageWarning] = useState<string>();
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>("details");
+  const [oldVersionId, setOldVersionId] = useState<string>();
+  const setQueue = useCallback<React.Dispatch<React.SetStateAction<FeedbackQueue>>>((update) => {
+    setFeedbackWorkspace((current) => {
+      const next = typeof update === "function" ? update(current.queue) : update;
+      return next === current.queue ? current : { ...current, queue: next };
+    });
+  }, []);
+  useEffect(() => {
+    if (feedbackWorkspace.recoveryWarning) {
+      setStorageWarning(feedbackWorkspace.recoveryWarning);
+      return;
+    }
+    try {
+      sessionStorage.setItem("emviz:feedback-workspace:v1", serializeFeedbackWorkspace(feedbackWorkspace));
+      setStorageWarning(undefined);
+    } catch {
+      setStorageWarning("Browser storage is unavailable. Your drafts and Queue are kept in this tab, but reloading the page may lose them.");
+    }
+  }, [feedbackWorkspace]);
   const [selection, setSelection] = useState<NodeSelection>();
   const [gwtListSelection, setGwtListSelection] = useState<NodeSelection>();
   const selectedId = resolveSelection(project, selection)?.id;
@@ -873,11 +929,14 @@ function FlowWorkspace() {
   const { setCenter, fitView } = useReactFlow();
   const [view, setView] = useState<FeedbackView>("current");
   const session = useFeedbackSession(!window.__EMVIZ_EXPORT__ && sourceMode === "remote" && loadState !== "import", view);
+  useEffect(() => {
+    if (session.snapshot) setQueue((current) => reconcileFeedbackQueue(current, session.snapshot!));
+  }, [session.snapshot, setQueue]);
   const appliedSnapshot = useRef<{ key: string; sessionId: string } | undefined>(undefined);
   const snapshotKey = session.snapshot ? JSON.stringify([session.snapshot.sessionId, session.snapshot.revision, view, session.snapshot.feedback.request?.id, session.snapshot.feedback.status]) : undefined;
   const displayedSession: SessionController = {
     ...session,
-    connection: session.connection === "live" && snapshotKey && appliedSnapshot.current?.key !== snapshotKey ? "checking" : session.connection
+    connection: sourceMode !== "remote" || window.__EMVIZ_EXPORT__ ? "unavailable" : session.connection === "live" && snapshotKey && appliedSnapshot.current?.key !== snapshotKey ? "checking" : session.connection
   };
 
   useEffect(() => {
@@ -954,9 +1013,10 @@ function FlowWorkspace() {
   const selectedNode = useMemo(() => project?.nodes.find((node) => node.id === selectedId), [project, selectedId]);
   const draftSessionId = session.snapshot?.sessionId;
   const draftKey = draftSessionId && selectedNode ? feedbackDraftKey(draftSessionId, selectedNode) : undefined;
+  useEffect(() => setOldVersionId(undefined), [draftKey]);
   const changeDraft = (message: string, expectedMessage?: string) => {
     if (!draftSessionId || !selectedNode) return;
-    setDrafts((current) => updateFeedbackDraft(current, draftSessionId, selectedNode, message, expectedMessage));
+    setFeedbackWorkspace((current) => ({ ...current, drafts: updateFeedbackDraft(current.drafts, draftSessionId, selectedNode, message, expectedMessage) }));
   };
   const selectedFindings = useMemo(
     () => report?.findings.filter((finding) => finding.nodeId === selectedId) ?? [],
@@ -1040,7 +1100,7 @@ function FlowWorkspace() {
   useEffect(() => {
     if (gwtListId || selectedNode?.type === "gwt") {
       const selectedResult = gwtListId ? document.querySelector<HTMLElement>(".gwt-all-list button[aria-current]") : null;
-      (selectedResult ?? document.querySelector<HTMLElement>(".gwt-panel button"))?.focus({ preventScroll: true });
+      (selectedResult ?? document.querySelector<HTMLElement>('.gwt-panel button:not([role="tab"])'))?.focus({ preventScroll: true });
     }
   }, [gwtListId, selectedNode?.id, selectedNode?.type]);
 
@@ -1148,7 +1208,7 @@ function FlowWorkspace() {
   }
 
   return (
-    <div className={`app-shell ${diff ? "diff-mode" : ""} ${session.snapshot ? "has-feedback" : ""}`}>
+    <div className={`app-shell ${diff ? "diff-mode" : ""}`}>
       <header className="toolbar">
         <div className="model-summary">
           <strong>emviz</strong>
@@ -1230,7 +1290,6 @@ function FlowWorkspace() {
         </div>
         {exportError ? <div className="toolbar-error" role="alert">{exportError}</div> : null}
       </header>
-      <FeedbackSessionBar session={displayedSession} drafts={Object.values(drafts)} view={view} onView={(next) => { setView(next); setDiffFilter("all"); }} />
       <ValidationPanel
         report={report}
         onSelect={focusNode}
@@ -1249,11 +1308,23 @@ function FlowWorkspace() {
       <SourcePanel
         key={(gwtListNode ?? selectedNode)?.type === "gwt" ? `gwt:${(gwtListNode ?? selectedNode)?.sourcePath ?? (gwtListNode ?? selectedNode)?.sliceTitle}` : "selection"}
         diff={diff}
-        session={session.snapshot ? displayedSession : undefined}
-        view={view}
-        draftMessage={draftKey ? drafts[draftKey]?.message ?? "" : ""}
-        onDraftChange={changeDraft}
-        onDraftSent={(message) => changeDraft("", message)}
+        tab={inspectorTab}
+        onTab={setInspectorTab}
+        oldVersionId={oldVersionId}
+        onVersion={setOldVersionId}
+        agentPanel={<>
+          {storageWarning ? <div className="feedback-storage-warning"><p className="feedback-warning" role="alert">{storageWarning}</p>
+            {feedbackWorkspace.recoveryWarning ? <button type="button" onClick={() => setFeedbackWorkspace((current) => ({ ...current, recoveryWarning: undefined }))}>Replace damaged saved feedback</button> : null}
+          </div> : null}
+          <AgentPanel session={displayedSession} drafts={Object.values(drafts)} view={view}
+            onView={(next) => { setView(next); setDiffFilter("all"); }}
+            node={selectedNode} diff={diff}
+            showingBefore={Boolean(previousNodeFor(diff, selectedNode) && oldVersionId === selectedNode?.id) || Boolean(selectedNode && diff?.nodeStatus[selectedNode.id] === "removed")}
+            message={draftKey ? drafts[draftKey]?.message ?? "" : ""}
+            onMessageChange={changeDraft}
+            onAdded={(message) => changeDraft("", message)}
+            queue={queue} onQueueChange={setQueue} storageNeedsReview={Boolean(feedbackWorkspace.recoveryWarning)} />
+        </>}
         gwtList={gwtList}
         onGwtList={showGwtList}
         onClose={clearFocus}

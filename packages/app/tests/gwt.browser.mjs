@@ -718,6 +718,7 @@ async function openFeedbackSession(project, diff) {
     token: "browser-test-only-token",
     revision: "revision-1",
     project,
+    currentNodeIds: Object.fromEntries(project.nodes.map((node) => [node.id, node.id])),
     validation: { findings: [], errors: 0, warnings: 0 },
     diff,
     feedback: { status: "idle", history: [], agent: { connected: true } },
@@ -740,11 +741,13 @@ async function openFeedbackSession(project, diff) {
   let revision = 1;
   const refresh = async (nextProject = snapshot.project) => {
     snapshot.project = nextProject;
+    snapshot.currentNodeIds = Object.fromEntries(nextProject.nodes.map((node) => [node.id, node.id]));
     snapshot.revision = "revision-" + ++revision;
     const response = page.waitForResponse(async (response) => {
       if (new URL(response.url()).pathname !== "/api/session" || !response.ok()) return false;
       return (await response.json()).revision === snapshot.revision;
     });
+    await page.getByRole("tab", { name: "Agent", exact: true }).click();
     await page.getByRole("button", { name: "Refresh", exact: true }).click();
     await response;
   };
@@ -757,6 +760,7 @@ test("unsent feedback survives target rename and deletion without transferring t
     const { page, errors, requests, snapshot, refresh } = await openFeedbackSession(initial);
     try {
       await page.locator('[data-id="command-0"]').click();
+      await page.getByRole("tab", { name: "Agent", exact: true }).click();
       await page.getByLabel("Feedback message", { exact: true }).fill("Keep this draft about Command 0.");
       const next = structuredClone(initial);
       if (change === "rename") next.nodes.find((node) => node.id === "command-0").label = "Renamed command";
@@ -793,35 +797,123 @@ test("unsent feedback survives target rename and deletion without transferring t
   }
 });
 
-test("GWT Old version disables feedback while preserving the current-node draft", async () => {
+test("GWT Old version disables queueing while preserving the current-node draft", async () => {
   const { diffEventModelProjects } = await server.ssrLoadModule("../graph/src/index.ts");
   const base = model(4);
   const target = structuredClone(base);
-  const changed = target.nodes.find((node) => node.id === "gwt-0-2");
-  changed.description = "Updated scenario";
+  target.nodes.find((node) => node.id === "gwt-0-2").description = "Updated scenario";
   const { project, diff } = diffEventModelProjects(base, target);
   const { page, errors, requests } = await openFeedbackSession(project, diff);
+  const tab = (name) => page.getByRole("tab", { name, exact: true }).click();
   try {
+    await tab("Agent");
     await page.getByRole("button", { name: "Session diff", exact: true }).click();
     await page.locator('[data-id="gwt-0-0"] .gwt-summary button').filter({ hasText: "Scenario 3" }).click();
     const panel = page.getByRole("complementary", { name: "Node details" });
     const message = page.getByLabel("Feedback message", { exact: true });
-    const send = panel.getByRole("button", { name: "Send feedback", exact: true });
+    const queue = page.getByRole("button", { name: "Add to Queue", exact: true });
     await message.fill("Review the current scenario.");
-    assert.equal(await send.isEnabled(), true);
+    assert.equal(await queue.isEnabled(), true);
+    await tab("Details");
     await panel.getByRole("button", { name: "Old version", exact: true }).click();
-    assert.equal(await message.isDisabled(), true);
-    assert.equal(await send.isDisabled(), true);
+    await tab("Agent");
+    assert.equal(await queue.isDisabled(), true);
     assert.equal(await message.inputValue(), "Review the current scenario.");
-    assert.match(await panel.textContent(), /Switch to New version/);
+    assert.match(await page.getByRole("complementary", { name: "Agent", exact: true }).textContent(), /Switch to New version/);
+    await tab("Details");
     await panel.getByRole("button", { name: "New version", exact: true }).click();
-    assert.equal(await message.isEnabled(), true);
-    assert.equal(await send.isEnabled(), true);
+    await tab("Agent");
+    assert.equal(await queue.isEnabled(), true);
     assert.equal(await message.inputValue(), "Review the current scenario.");
+    await tab("Details");
     await panel.getByRole("button", { name: "All scenarios", exact: true }).click();
     await page.getByRole("complementary", { name: "GWT scenarios" }).getByRole("button", { name: "Scenario 3 · changed", exact: true }).click();
+    await tab("Agent");
     assert.equal(await message.inputValue(), "Review the current scenario.");
     assert.deepEqual(requests, []);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("Agent queue preserves targets, edits, drafts, and unsent items across selection and reload", async () => {
+  const { page, errors, requests, snapshot, refresh } = await openFeedbackSession(model(4));
+  const agentTab = () => page.getByRole("tab", { name: "Agent", exact: true }).click();
+  const queue = page.getByRole("region", { name: "Feedback Queue", exact: true });
+  const selectCommand = async (name) => {
+    await page.getByLabel("Search event model", { exact: true }).fill(name);
+    await page.locator(".search-results").getByRole("button", { name: name + " command", exact: true }).click();
+    await agentTab();
+    assert.equal(await page.getByRole("form", { name: "Node feedback" }).getByRole("heading").textContent(), "Feedback for " + name);
+  };
+  try {
+    assert.equal(await page.getByRole("tab", { name: "Details", exact: true }).getAttribute("aria-selected"), "true");
+    await page.locator('[data-id="command-0"]').click();
+    assert.equal(await page.getByRole("form", { name: "Node feedback" }).count(), 0);
+    await agentTab();
+    await page.getByLabel("Feedback message", { exact: true }).fill("First node feedback.");
+    await page.getByRole("button", { name: "Add to Queue", exact: true }).click();
+    await selectCommand("Command 1");
+    await page.getByLabel("Feedback message", { exact: true }).fill("Second node feedback.");
+    await page.getByRole("button", { name: "Add to Queue", exact: true }).click();
+    assert.equal(await queue.getByRole("listitem").count(), 2);
+    assert.deepEqual(requests, [], "Queue must not send any command");
+    await queue.getByRole("button", { name: "Edit queued feedback for Command 0", exact: true }).click();
+    await queue.getByRole("textbox", { name: "Edit queued feedback for Command 0", exact: true }).fill("Edited first node feedback.");
+    await queue.getByRole("button", { name: "Save", exact: true }).click();
+    await queue.getByRole("button", { name: "Remove queued feedback for Command 1", exact: true }).click();
+    assert.equal(await queue.getByRole("listitem").count(), 1);
+    assert.match(await queue.textContent(), /Command 0/);
+    assert.match(await queue.textContent(), /Edited first node feedback/);
+    await page.getByLabel("Feedback message", { exact: true }).fill("Unqueued second-node draft.");
+    await page.reload();
+    await page.locator(".react-flow__node").first().waitFor();
+    await agentTab();
+    assert.equal(await queue.getByRole("listitem").count(), 1);
+    assert.match(await queue.textContent(), /Edited first node feedback/);
+    await selectCommand("Command 1");
+    assert.equal(await page.getByLabel("Feedback message", { exact: true }).inputValue(), "Unqueued second-node draft.");
+    snapshot.feedback.status = "stopped";
+    await refresh();
+    assert.equal(await page.getByRole("button", { name: "Send to Agent", exact: true }).isDisabled(), true);
+    assert.equal(await queue.getByRole("listitem").count(), 1);
+    assert.deepEqual(requests, [], "Reload and Stop must not dispatch unsent feedback");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("Agent retries an uncertain batch with identical IDs and contents after reload", async () => {
+  const { page, errors } = await openFeedbackSession(model(4));
+  const batches = [];
+  const queue = page.getByRole("region", { name: "Feedback Queue", exact: true });
+  try {
+    await page.route("**/api/feedback/batch", async (route) => {
+      const body = route.request().postDataJSON();
+      batches.push(body);
+      if (batches.length === 1) return route.fulfill({ status: 503, json: { error: "Temporary batch failure." } });
+      return route.fulfill({ json: { id: "confirmed-browser-batch", ...body } });
+    });
+    await page.getByLabel("Search event model", { exact: true }).fill("Command 0");
+    await page.locator(".search-results").getByRole("button", { name: "Command 0 command", exact: true }).click();
+    await page.getByRole("tab", { name: "Agent", exact: true }).click();
+    await page.getByLabel("Feedback message", { exact: true }).fill("Keep the original target and message.");
+    await page.getByRole("button", { name: "Add to Queue", exact: true }).click();
+    await page.getByRole("button", { name: "Send to Agent", exact: true }).click();
+    await page.getByRole("button", { name: "Retry same batch", exact: true }).waitFor();
+    assert.equal(await queue.getByRole("button", { name: "Edit queued feedback for Command 0", exact: true }).isDisabled(), true);
+    assert.equal(await queue.getByRole("button", { name: "Remove queued feedback for Command 0", exact: true }).isDisabled(), true);
+    assert.equal(batches.length, 1);
+    assert.equal(batches[0].items[0].nodeId, "command-0");
+    assert.equal(batches[0].items[0].message, "Keep the original target and message.");
+    await page.reload();
+    await page.locator(".react-flow__node").first().waitFor();
+    await page.getByRole("tab", { name: "Agent", exact: true }).click();
+    assert.equal(await queue.getByRole("listitem").count(), 1);
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    assert.equal(batches.length, 1, "reload and refresh must not retry automatically");
+    await page.getByRole("button", { name: "Retry same batch", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".feedback-queue li").length === 0);
+    assert.equal(batches.length, 2);
+    assert.deepEqual(batches[1], batches[0], "retry must preserve the batch ID, item IDs, targets, revisions, and messages");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

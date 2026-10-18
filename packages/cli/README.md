@@ -89,7 +89,7 @@ emviz poll --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
 
 Waits for up to 25 seconds and exits with one JSON result.
 
-- `status: "request"` includes `request` and `next_step`. The request includes its ID, feedback message, selected node reference, source path, source YAML, connected context, and project root.
+- `status: "request"` includes `request` and `next_step`. The request includes its ID, feedback message, selected node reference, source path, source YAML, connected context, and project root. A batch adds `clientBatchId` and an ordered `items` array. Each item includes its captured ID, node ID, reference, revision, message, source path, YAML, and context. The top-level node identifies the first item. The top-level message and context include every item for older agents.
 - `status: "timeout"` means no request arrived during this poll. The agent can poll again.
 - `status: "stopped"` ends the agent's loop.
 
@@ -123,9 +123,11 @@ Closes the owned local server. Its in-memory request history ends with the proce
 
 ## Feedback limits
 
-A session accepts one queued or working request at a time. Another request receives a busy error. Messages accept at most 4,000 characters. Replies accept at most 8,000 characters. HTTP request bodies have a separate 32 KiB limit. The session retains the latest 20 request records. Idempotent retries are recognized while their records remain in memory.
+The browser's **Add to Queue** holds unsent items. **Send to Agent** submits the entire queue as one request. A session accepts one queued or working request at a time. Another request receives a busy error. A batch accepts 1 to 20 items, at most 4,000 characters per message, and at most 16,000 message characters in total. Replies accept at most 8,000 characters. The batch endpoint has a 128 KiB body limit. Other HTTP request bodies retain the 32 KiB limit. The session retains the latest 20 request records. Legacy single-node retries are recognized while their records remain in visible history. Batch receipts last for the server session, up to 1,000 distinct accepted batches. At capacity, new batches fail until the server restarts. An exact retry remains valid after its visible history row expires, but the old reply is no longer available.
 
-Project feedback reads at most 512 model files and 8 MiB per snapshot. Discovery stops after 10,000 directory entries. Configured sources and symlink targets must stay inside the selected project root. A selected source is limited to 64,000 characters, and connected context to 128,000 characters.
+Project feedback reads at most 512 model files and 8 MiB per snapshot. Discovery stops after 10,000 directory entries. Configured sources and symlink targets must stay inside the selected project root. A selected source is limited to 64,000 characters, and connected context to 128,000 characters. Captured context across a batch is limited to 1 MiB.
+
+The additive `POST /api/feedback/batch` accepts `{ clientBatchId, items: [{ id, nodeId, reference, revision, message }] }`. All items must refer to the same current snapshot. Invalid or stale items reject the whole batch before any agent receives it. Reusing an ID with different ordered contents fails. Existing `POST /api/feedback/request` clients remain supported.
 
 Feedback operations require the session token. Loopback viewers obtain the token
 from their same-origin session snapshot. Remote viewers use the private
@@ -137,7 +139,7 @@ from their same-origin session snapshot. Remote viewers use the private
 
 **Session diff** compares the current model with a fixed Git baseline captured at startup. If Git cannot provide a usable baseline, the viewer labels the startup snapshot fallback. Later commits do not move the session baseline.
 
-**Turn diff** compares the snapshot at request claim with the snapshot after a successful reply. It remains frozen after completion. Changes made manually during that interval also appear in the turn diff. The diff does not establish authorship.
+**Turn diff** compares the snapshot at request claim with the snapshot after a successful reply. A batch has one claim, one reply, and one turn diff for all of its items. It remains frozen after completion. Changes made manually during that interval also appear in the turn diff. The diff does not establish authorship.
 
 Feedback is unavailable for removed, stale, or ambiguous selections, for disconnected sessions, and in **Turn diff**. Manual imports and standalone exports remain read-only.
 

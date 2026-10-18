@@ -3,9 +3,19 @@ import type { EventModelProject, GraphDiff, ProjectEdge, ProjectNode, Validation
 export type FeedbackView = "current" | "session" | "turn";
 export type FeedbackStatus = "idle" | "queued" | "working" | "completed" | "stopped";
 
+export type FeedbackRequestItem = {
+  id: string;
+  nodeId: string;
+  reference: string;
+  revision: string;
+  message: string;
+};
+
 export type FeedbackRequest = {
   id: string;
   clientRequestId: string;
+  clientBatchId?: string;
+  items?: FeedbackRequestItem[];
   message: string;
   reference: string;
   nodeId: string;
@@ -18,6 +28,7 @@ export type FeedbackSession = {
   sessionId: string;
   token: string;
   revision: string;
+  currentNodeIds?: Record<string, string>;
   project: EventModelProject;
   validation: ValidationReport;
   diff?: GraphDiff;
@@ -68,7 +79,7 @@ export type NodeSelection = {
   snapshotNodes: ProjectNode[];
 };
 
-export function identityForNode(node: ProjectNode): NodeIdentity {
+export function identityForNode(node: NodeIdentity): NodeIdentity {
   return {
     type: node.type,
     sourcePath: node.sourcePath,
@@ -144,6 +155,26 @@ export function isFeedbackSession(value: unknown): value is FeedbackSession {
       Array.isArray(session.feedback.history) && typeof session.feedback.agent?.connected === "boolean");
 }
 
+export function feedbackTargetUnavailableReason(
+  session: FeedbackSession | undefined,
+  view: FeedbackView,
+  connected: boolean,
+  node: ProjectNode,
+  diff?: GraphDiff,
+  showingBefore = false
+): string | undefined {
+  if (!session) return "Feedback is available when a project session is running.";
+  if (!connected) return "Reconnect to the project server before adding feedback.";
+  if (session.stale || session.error) return "The model is stale. Fix the model error before adding feedback.";
+  if (view === "turn") return "Switch to Current or Session diff to add feedback about the current model.";
+  if (diff?.nodeStatus[node.id] === "removed") return "This node was removed. Select a current node to add feedback.";
+  if (showingBefore) return "Switch to New version to add feedback about the current node. Your draft is preserved.";
+  if (!uniqueCurrentNode(session.project, node)) return "This node is ambiguous. Give same-named nodes distinct names before adding feedback.";
+  if (view === "session" && !session.currentNodeIds) return "Refresh the project server before adding feedback from Session diff.";
+  if (session.currentNodeIds && !session.currentNodeIds[node.id]) return "This node has no unique current target. Select a current node to add feedback.";
+  return undefined;
+}
+
 export function feedbackUnavailableReason(
   session: FeedbackSession | undefined,
   view: FeedbackView,
@@ -153,13 +184,8 @@ export function feedbackUnavailableReason(
   diff?: GraphDiff,
   showingBefore = false
 ): string | undefined {
-  if (!session) return "Feedback is available when a project session is running.";
-  if (!connected) return "Reconnect to the project server before sending feedback.";
-  if (session.stale || session.error) return "The model is stale. Fix the model error before sending feedback.";
-  if (view === "turn") return "Switch to Current or Session diff to send feedback about the current model.";
-  if (diff?.nodeStatus[node.id] === "removed") return "This node was removed. Select a current node to send feedback.";
-  if (showingBefore) return "Switch to New version to send feedback about the current node. Your draft is preserved.";
-  if (!uniqueCurrentNode(session.project, node)) return "This node is ambiguous. Give same-named nodes distinct names before sending feedback.";
+  const reason = feedbackTargetUnavailableReason(session, view, connected, node, diff, showingBefore);
+  if (reason || !session) return reason;
   if (session.feedback.status === "stopped") return "The session is stopped. Stop the external editor before resuming.";
   if (pending || session.feedback.status === "queued" || session.feedback.status === "working") return "Wait for the current request to finish before sending another.";
   return undefined;

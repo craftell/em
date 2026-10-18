@@ -32,6 +32,7 @@ function snapshot(model = project([command])): FeedbackSession {
     sessionId: "session-1",
     token: "test-session-token",
     revision: "revision-1",
+    currentNodeIds: Object.fromEntries(model.nodes.map((node) => [node.id, node.id])),
     project: model,
     validation: { errors: 0, warnings: 0, findings: [] },
     feedback: { status: "idle", history: [], agent: { connected: false } },
