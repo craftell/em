@@ -20,6 +20,7 @@ export type ProjectNode = {
   actors?: string[];
   actorDefinitions?: ActorDefinition[];
   screenType?: "user" | "system";
+  url?: string;
   fields?: string;
   description?: string;
   given?: GwtItemRef[];
