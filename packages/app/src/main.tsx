@@ -18,6 +18,7 @@ import "./styles.css";
 import { apiFetch } from "./api";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
+import { timelineForView } from "./timeline";
 import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
 import { AgentPanel, useFeedbackSession, type SessionController } from "./feedback";
 import { emptyFeedbackWorkspace, reconcileFeedbackQueue, restoreFeedbackWorkspace, serializeFeedbackWorkspace, type FeedbackQueue, type FeedbackWorkspace } from "./feedbackQueue";
@@ -1043,7 +1044,7 @@ function FlowWorkspace() {
   }, [fieldFlows, hoveredEdgeId, project, selectedFieldName, selectedId]);
   const flow = useMemo(
     () => project ? toFlow(project, selectedId, {
-      timelineId: diff ? undefined : timelineId,
+      timelineId: timelineForView(timelineId, Boolean(diff)),
       focusedEdgeIds,
       edgeFieldFlows: fieldFlows,
       selectedFieldName,
@@ -1242,7 +1243,7 @@ function FlowWorkspace() {
         </div>
         {Boolean(project.timelines?.length) ? <label className="timeline-picker">
           <span>Timeline</span>
-          <select aria-label="Timeline" disabled={Boolean(diff)} title={diff ? "Diff shows all stories, including removed items." : undefined} value={diff ? "" : timelineId ?? ""} onChange={(event) => {
+          <select aria-label="Timeline" disabled={Boolean(diff)} title={diff ? "Diff shows all stories, including removed items." : undefined} value={timelineForView(timelineId, Boolean(diff)) ?? ""} onChange={(event) => {
             setTimelineId(event.target.value || undefined);
             setSelection(undefined);
             setGwtListSelection(undefined);
