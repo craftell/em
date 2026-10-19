@@ -226,7 +226,13 @@ timeline may switch the view to All stories without fitting the camera.
 Canvas shortcuts must not intercept typing in inputs, textareas, selects, or
 editable content. Scroll inside the right sidebar to scroll its content; it
 must not pan or zoom the canvas. Ordinary selection and feedback controls remain
-available after repeated gestures or a window-focus change.
+available after repeated gestures or a window-focus change. The toolbar can wrap
+onto multiple rows. The canvas and sidebar start below it, so **Details**,
+**Agent**, **Refresh**, and version controls stay reachable at narrow widths.
+Opening **Actors** also reserves space above the workspace. Its choices stay
+open and usable while you inspect the sidebar. Close it with its summary or Escape.
+Treat a covered control as a viewer defect. Do not force-click through it and
+claim the interaction passed.
 
 ## Explain review and actor filters
 

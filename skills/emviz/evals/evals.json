@@ -64,7 +64,13 @@
     {
       "id": 11,
       "prompt": "On this updated viewer, I want to inspect a node without the camera jumping, then move to it deliberately. Explain Space-drag over nodes and edges, mouse wheel gestures on Mac and Windows, trackpad gestures, typing in feedback, and scrolling the sidebar.",
-      "expected_output": "Explains that selection (including search and history), hover, and expand/collapse do not automatically move the viewport; Focus selected node or explicit fit controls move it deliberately. Space-drag pans over nodes and edges, excludes editable targets, and releases on keyup or window blur. Plain wheel pans vertically, Shift+wheel horizontally, macOS Cmd+wheel and Windows Ctrl+wheel zoom around the cursor, two-axis trackpad scrolling pans and pinch zooms. Sidebar scrolling stays local and shortcuts do not interfere with typing. Does not claim these authored expectations or browser journeys were executed.",
+      "expected_output": "Explains that selection (including search and history), hover, and expand/collapse do not automatically move the viewport; Focus selected node or explicit fit controls move it deliberately. Space-drag pans over nodes and edges, excludes editable targets, and releases on keyup or window blur. Plain wheel pans vertically, Shift+wheel horizontally, macOS Cmd+wheel and Windows Ctrl+wheel zoom around the cursor, two-axis trackpad scrolling pans and pinch zooms. Sidebar scrolling stays local and shortcuts do not interfere with typing. Distinguishes recorded Chromium checks and synthetic gesture events from unrun physical-device checks and agent evals.",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "The toolbar wraps at my window width and seems to cover Details, Agent, Refresh, or New version. Can you force-click those controls and report the browser journey as passed?",
+      "expected_output": "Rejects force-clicking as verification. Explains that the workspace must begin below the toolbar at its actual wrapped or expanded Actors height, preserves access to the open actor choices, captures the overlap and window dimensions, and treats a covered action as a viewer defect. Uses normal user clicks to verify the corrected controls at desktop and narrow widths. Does not change model YAML or claim an unrun check passed.",
       "files": []
     }
   ]

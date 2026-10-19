@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
-import { after, before, test } from "node:test";
+import { after, before, beforeEach, test } from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
-import { createServer } from "vite";
+import { createServer, preview } from "vite";
+
+const evidence = process.env.EMVIZ_EVIDENCE_DIR
+  ? resolve(process.env.EMVIZ_EVIDENCE_DIR, "navigation-" + new Date().toISOString().replace(/[:.]/g, "-"))
+  : undefined;
+let caseNumber = 0;
+let caseName;
+const captures = [];
+beforeEach((context) => { caseName = context.name; });
 
 let server;
 let browser;
@@ -10,9 +21,17 @@ before(async () => {
   server = await createServer({ server: { host: "127.0.0.1", port: 0 } });
   await server.listen();
   url = "http://127.0.0.1:" + server.httpServer.address().port;
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: process.env.EMVIZ_HEADED !== "1" });
+  if (evidence) {
+    await mkdir(evidence, { recursive: true });
+    console.log("Navigation evidence: " + evidence);
+  }
 });
-after(async () => { await browser?.close(); await server?.close(); });
+after(async () => {
+  await browser?.close();
+  await server?.close();
+  if (evidence) await writeFile(join(evidence, "captures.json"), JSON.stringify(captures, null, 2));
+});
 
 const localEdgeIds = [
   "command-event-0", "command-event-1", "event-query-0", "event-query-1",
@@ -53,21 +72,48 @@ function model() {
   return { root: "/navigation-fixture", config: { paths: {} }, events: [], stories, slices, nodes, edges };
 }
 
-async function open() {
-  // A new context gives each case fresh storage; reloads within a case retain it.
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+async function open({ project = model, init, initArg, diff, address = url } = {}) {
+  const id = String(++caseNumber).padStart(2, "0");
+  captures.push({ id, test: caseName });
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    ...(evidence ? { recordVideo: { dir: join(evidence, id + "-video"), size: { width: 1440, height: 1000 } } } : {})
+  });
+  if (init) await context.addInitScript(init, initArg);
+  const page = await context.newPage();
+  if (evidence) {
+    const close = page.close.bind(page);
+    page.close = async () => {
+      try {
+        await page.screenshot({ path: join(evidence, id + ".png"), fullPage: true });
+        await writeFile(join(evidence, id + ".aria.txt"), await page.locator("body").ariaSnapshot());
+        await writeFile(join(evidence, id + "-viewport.json"), JSON.stringify(await viewport(page), null, 2));
+      } finally {
+        await close();
+        await context.close();
+      }
+    };
+  } else {
+    page.close = () => context.close();
+  }
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/api/*", (route) => route.fulfill({
     json: new URL(route.request().url()).pathname === "/api/model"
-      ? model() : { findings: [], errors: 0, warnings: 0 }
+      ? project() : { findings: [], errors: 0, warnings: 0 }
   }));
   await page.route("**/api/session?**", (route) => route.fulfill({ status: 404, body: "" }));
-  await page.route("**/api/diff", (route) => route.fulfill({ status: 404, body: "" }));
-  await page.goto(url);
-  await node(page, "command-0").waitFor();
-  await page.waitForTimeout(600); // Initial fit-to-view is allowed to animate.
-  return { page, errors };
+  await page.route("**/api/diff", (route) => route.fulfill(diff ? { json: diff } : { status: 404, body: "" }));
+  try {
+    await page.goto(address);
+    await node(page, "command-0").waitFor();
+    await page.waitForTimeout(600);
+    assert.deepEqual(errors, [], "the fixture must load without page errors");
+    return { page, errors };
+  } catch (error) {
+    await page.close();
+    throw error;
+  }
 }
 
 function node(page, id) {
@@ -139,6 +185,45 @@ async function center(locator) {
   assert.ok(bounds, "interaction target must be rendered");
   return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
 }
+
+test("wrapped toolbars leave sidebar tabs and actions reachable at desktop and narrow widths", async () => {
+  const { page, errors } = await open({ project: scopedModel });
+  try {
+    for (const width of [1440, 1280, 1024, 680]) {
+      await page.setViewportSize({ width, height: 900 });
+      const toolbar = await page.locator(".toolbar").boundingBox();
+      const panel = await page.getByRole("complementary", { name: "Node details" }).boundingBox();
+      assert.ok(panel.y >= toolbar.y + toolbar.height, "sidebar must begin below the toolbar at width " + width);
+      await page.getByRole("tab", { name: "Agent", exact: true }).click();
+      await page.getByRole("tab", { name: "Details", exact: true }).click();
+      await page.getByLabel("Search event model", { exact: true }).fill("Alpha command");
+      await page.locator(".search-results").getByRole("button", { name: "Alpha command command", exact: true }).click();
+      await page.getByRole("button", { name: "Focus selected node", exact: true }).click();
+    }
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("open Actors stays usable without covering sidebar controls or moving the viewport", async () => {
+  const { page, errors } = await open();
+  try {
+    const filter = page.locator(".actor-filter");
+    await unchanged(page, async () => {
+      await filter.locator("summary").click();
+      await filter.getByRole("checkbox", { name: "member", exact: true }).check();
+    }, "opening and choosing Actors");
+    const popover = await page.locator(".actor-filter-popover").boundingBox();
+    const panel = await page.getByRole("complementary", { name: "Node details" }).boundingBox();
+    assert.ok(panel.y >= popover.y + popover.height, "sidebar actions must remain below the open Actors controls");
+    await unchanged(page, async () => {
+      await page.getByRole("tab", { name: "Agent", exact: true }).click();
+      await page.getByRole("tab", { name: "Details", exact: true }).click();
+      assert.equal(await filter.getByRole("checkbox", { name: "member", exact: true }).isChecked(), true);
+      await filter.locator("summary").click();
+    }, "sidebar access with Actors open");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
 
 test("canvas selection, sidebar hover, search and history never move the viewport", async () => {
   const { page, errors } = await open();
@@ -439,6 +524,246 @@ test("Space preserves native keyboard button activation and contenteditable inpu
   } finally {
     await page.keyboard.up("Space").catch(() => {});
     await page.close();
+  }
+});
+
+test("same-name legacy headers collapse independently and explicit focus centers the selected node's summary", async () => {
+  const project = () => {
+    const result = model();
+    for (const story of result.stories) story.name = "Same";
+    for (const slice of result.slices) slice.storyName = "Same";
+    for (const item of result.nodes) {
+      if (item.storyName) item.storyName = "Same";
+      if (item.type === "story") item.label = "Same";
+    }
+    return result;
+  };
+  const { page, errors } = await open({ project });
+  try {
+    await page.getByLabel("Edge visibility", { exact: true }).selectOption("all");
+    await selectNode(page, "command-0", "Alpha command");
+    await unchanged(page, async () => {
+      await node(page, "story-0").getByRole("button", { name: "Collapse Same", exact: true }).click();
+      await node(page, "command-0").waitFor({ state: "detached" });
+    }, "same-name legacy collapse");
+    await node(page, "command-1").waitFor();
+    await edges(page, [...localEdgeIds.filter((id) => id.endsWith("-1")), "cross-read"]);
+    const panel = page.getByRole("complementary", { name: "Node details" });
+    await panel.getByRole("heading", { name: "Alpha command", exact: true }).waitFor();
+    await panel.getByRole("button", { name: "Focus selected node", exact: true }).click();
+    await page.waitForTimeout(450);
+    const summary = await node(page, "story-0").boundingBox();
+    const canvas = await page.locator(".canvas").boundingBox();
+    closeTo(summary.x + summary.width / 2, canvas.x + canvas.width / 2, "focus summary x", 1);
+    closeTo(summary.y + summary.height / 2, canvas.y + canvas.height / 2, "focus summary y", 1);
+    await page.reload();
+    await node(page, "story-0").getByRole("button", { name: "Expand Same", exact: true }).waitFor();
+    await node(page, "command-1").waitFor();
+    assert.equal(await node(page, "command-0").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+function scopedModel() {
+  const result = model();
+  result.stories.forEach((story, index) => { story.id = "stable-" + index; });
+  result.slices.forEach((slice, index) => { slice.storyId = "stable-" + index; });
+  for (const item of result.nodes) {
+    const index = item.id.endsWith("-0") ? 0 : 1;
+    item.storyId = "stable-" + index;
+  }
+  result.timelines = ["one", "two"].map((id) => ({
+    id, name: id, path: id + ".timeline.yaml", steps: result.stories.map((story, index) => ({
+      id: "step-" + index, storyId: story.id, after: index ? ["step-0"] : []
+    }))
+  }));
+  return result;
+}
+
+test("collapse preferences stay scoped to project and timeline IDs across rename and reload", async () => {
+  let current = scopedModel();
+  const { page, errors } = await open({ project: () => current });
+  try {
+    await page.getByRole("button", { name: "Collapse Alpha", exact: true }).click();
+    await node(page, "command-0").waitFor({ state: "detached" });
+    const timeline = page.getByLabel("Timeline", { exact: true });
+    await timeline.selectOption("one");
+    await node(page, "command-0").waitFor();
+    await page.getByRole("button", { name: "Collapse Beta", exact: true }).click();
+    await node(page, "command-1").waitFor({ state: "detached" });
+    await timeline.selectOption("two");
+    await node(page, "command-0").waitFor();
+    await node(page, "command-1").waitFor();
+    await timeline.selectOption("one");
+    await node(page, "command-0").waitFor();
+    assert.equal(await node(page, "command-1").count(), 0);
+    await timeline.selectOption("");
+    await node(page, "command-1").waitFor();
+    assert.equal(await node(page, "command-0").count(), 0);
+    current.stories[0].name = "Renamed";
+    current.nodes.find((item) => item.id === "story-0").label = "Renamed";
+    await page.reload();
+    await page.getByRole("button", { name: "Expand Renamed", exact: true }).waitFor();
+    await node(page, "command-1").waitFor();
+    current = { ...current, root: "/second-project" };
+    await page.reload();
+    await node(page, "command-0").waitFor();
+    await node(page, "command-1").waitFor();
+    current = { ...current, root: "/navigation-fixture" };
+    await page.reload();
+    await page.getByRole("button", { name: "Expand Renamed", exact: true }).waitFor();
+    await node(page, "command-1").waitFor();
+    assert.equal(await node(page, "command-0").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+for (const fault of ["malformed", "invalid-value", "unavailable"]) {
+  test("story controls remain usable with " + fault + " localStorage", async () => {
+    const { page, errors } = await open({ initArg: fault, init: (fault) => {
+      if (fault === "unavailable") {
+        Object.defineProperty(window, "localStorage", { get() { throw new DOMException("Fixture denies storage", "SecurityError"); } });
+      } else {
+        Storage.prototype.getItem = function (key) {
+          return key.startsWith("emviz:collapsed-stories:") ? (fault === "malformed" ? "{" : '{"not":"an array"}') : null;
+        };
+      }
+    } });
+    try {
+      await page.getByRole("button", { name: "Collapse Alpha", exact: true }).click();
+      await node(page, "command-0").waitFor({ state: "detached" });
+      await page.getByRole("button", { name: "Expand Alpha", exact: true }).click();
+      await node(page, "command-0").waitFor();
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  });
+}
+
+test("synthetic Meta-wheel and native pinch events preserve the cursor's graph coordinate", async () => {
+  const { page, errors } = await open();
+  try {
+    for (const kind of ["meta-wheel", "gesture"]) {
+      const before = await viewport(page);
+      const anchor = await page.locator(".canvas").evaluate((canvas, kind) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = rect.width * 0.7;
+        const y = rect.height * 0.3;
+        const properties = { clientX: rect.left + x, clientY: rect.top + y, bubbles: true, cancelable: true };
+        if (kind === "meta-wheel") {
+          canvas.dispatchEvent(new WheelEvent("wheel", { ...properties, deltaY: -100, metaKey: true }));
+        } else {
+          for (const [type, scale] of [["gesturestart", 1], ["gesturechange", 1.2], ["gesturechange", 1.4], ["gestureend", 1.4]]) {
+            const event = new Event(type, { bubbles: true, cancelable: true });
+            Object.assign(event, { clientX: properties.clientX, clientY: properties.clientY, scale });
+            canvas.dispatchEvent(event);
+          }
+        }
+        return { x, y };
+      }, kind);
+      await page.waitForTimeout(100);
+      const after = await viewport(page);
+      assert.ok(after.zoom > before.zoom, kind + " zooms in");
+      closeTo((anchor.x - after.x) / after.zoom, (anchor.x - before.x) / before.zoom, kind + " anchored x", 1);
+      closeTo((anchor.y - after.y) / after.zoom, (anchor.y - before.y) / before.zoom, kind + " anchored y", 1);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("slice selection reveals every incoming and outgoing cross edge but no unrelated dependency", async () => {
+  const project = () => {
+    const result = model();
+    result.nodes.push(
+      { ...result.nodes.find((item) => item.id === "query-1"), id: "second-query", label: "Second query" },
+      { id: "external-event", type: "event", label: "Boundary", sourcePath: "events.yaml" },
+      { id: "unrelated-query", type: "query", label: "Unrelated", sourcePath: "external.yaml" }
+    );
+    result.edges.push(
+      { id: "second-read", kind: "event-query", source: "event-0", target: "second-query" },
+      { id: "reverse-read", kind: "event-query", source: "event-1", target: "query-0" },
+      { id: "unrelated-read", kind: "event-query", source: "external-event", target: "unrelated-query" }
+    );
+    return result;
+  };
+  const { page, errors } = await open({ project });
+  try {
+    await edges(page, localEdgeIds);
+    await node(page, "slice-1").locator(".group-title").click();
+    await edges(page, [...allEdgeIds, "second-read", "reverse-read"]);
+    await selectNode(page, "query-1", "Beta query");
+    await edges(page, allEdgeIds);
+    const panel = page.getByRole("complementary", { name: "Node details" });
+    for (const mode of ["auto", "intra-slice", "all"]) {
+      await page.getByLabel("Edge visibility", { exact: true }).selectOption(mode);
+      await panel.getByRole("button", { name: "Alpha saved", exact: true }).waitFor();
+    }
+    await unchanged(page, async () => {
+      await panel.getByRole("button", { name: "Alpha saved", exact: true }).click();
+      await panel.getByRole("heading", { name: "Alpha saved", exact: true }).waitFor();
+    }, "canonical sidebar connection navigation");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("offline export and diff inputs retain navigation, proxies and local input ownership", async () => {
+  const host = await preview({ preview: { host: "127.0.0.1", port: 0, open: false } });
+  const address = "http://127.0.0.1:" + host.httpServer.address().port;
+  const { mkdtemp } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const scratch = await mkdtemp(join(tmpdir(), "emviz-navigation-export-"));
+  try {
+    for (const isDiff of [false, true]) {
+      const project = model();
+      const diff = isDiff ? {
+        nodeStatus: Object.fromEntries(project.nodes.map((item) => [item.id, "changed"])),
+        edgeStatus: Object.fromEntries(project.edges.map((item) => [item.id, "changed"])),
+        base: { label: "Before" }, target: { label: "After" }, previousNodes: {},
+        summary: {
+          nodes: { added: 0, removed: 0, changed: project.nodes.length, unchanged: 0 },
+          edges: { added: 0, removed: 0, changed: project.edges.length, unchanged: 0 }
+        }
+      } : undefined;
+      const { page, errors } = await open({ address, diff });
+      let file;
+      try {
+        await page.getByRole("button", { name: "Open menu", exact: true }).click();
+        const download = page.waitForEvent("download");
+        await page.getByRole("menuitem", { name: "Export", exact: true }).click();
+        file = join(scratch, isDiff ? "diff.html" : "current.html");
+        await (await download).saveAs(file);
+        assert.deepEqual(errors, []);
+      } finally { await page.close(); }
+      const saved = await open({ address: pathToFileURL(file).href });
+      const requests = [];
+      saved.page.on("request", (request) => { if (/^https?:/.test(request.url())) requests.push(request.url()); });
+      try {
+        await saved.page.reload();
+        await node(saved.page, "command-0").waitFor();
+        await saved.page.waitForTimeout(600);
+        await saved.page.getByLabel("Edge visibility", { exact: true }).selectOption("all");
+        await edges(saved.page, allEdgeIds);
+        await unchanged(saved.page, async () => {
+          await saved.page.getByRole("button", { name: "Collapse all stories", exact: true }).click();
+          await node(saved.page, "command-0").waitFor({ state: "detached" });
+        }, "offline collapse");
+        await edges(saved.page, ["cross-read"]);
+        await saved.page.getByRole("button", { name: "Expand all stories", exact: true }).click();
+        await edges(saved.page, allEdgeIds);
+        await selectNode(saved.page, "query-1", "Beta query");
+        const before = await viewport(saved.page);
+        const cursor = await center(saved.page.locator(".canvas"));
+        await saved.page.mouse.move(cursor.x, cursor.y);
+        await saved.page.mouse.wheel(12, 35);
+        await saved.page.waitForTimeout(100);
+        const panned = await viewport(saved.page);
+        closeTo(panned.x - before.x, -12, "offline x pan");
+        closeTo(panned.y - before.y, -35, "offline y pan");
+        assert.deepEqual(requests, [], "offline navigation must not request network resources");
+        assert.deepEqual(saved.errors, []);
+      } finally { await saved.page.close(); }
+    }
+  } finally {
+    await new Promise((resolveClose, reject) => host.httpServer.close((error) => error ? reject(error) : resolveClose()));
   }
 });
 

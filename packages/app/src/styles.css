@@ -58,14 +58,20 @@ button[aria-pressed="true"] {
 }
 
 .app-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
 }
 
+.workspace {
+  position: relative;
+  min-height: 0;
+}
+
 .toolbar {
-  position: fixed;
-  top: 12px;
-  left: 50%;
+  position: relative;
+  margin: 12px auto 4px;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -78,7 +84,6 @@ button[aria-pressed="true"] {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
-  transform: translateX(-50%);
 }
 
 .model-summary {
@@ -238,8 +243,8 @@ button[aria-pressed="true"] {
 }
 
 .canvas {
-  position: fixed;
-  inset: 72px 360px 0 0;
+  position: absolute;
+  inset: 0 360px 0 0;
 }
 
 .app-shell.diff-mode .canvas {
@@ -247,8 +252,8 @@ button[aria-pressed="true"] {
 }
 
 .panel {
-  position: fixed;
-  top: 72px;
+  position: absolute;
+  top: 0;
   bottom: 18px;
   z-index: 15;
   width: 330px;
@@ -1736,12 +1741,6 @@ pre {
 }
 
 @media (max-width: 850px) {
-  .toolbar {
-    left: 16px;
-    right: 16px;
-    transform: none;
-  }
-
   .model-summary span {
     display: none;
   }
@@ -1755,7 +1754,7 @@ pre {
 .actor-filter { position: relative; white-space: nowrap; }
 .actor-filter summary { padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; cursor: pointer; font-size: 12px; }
 .actor-filter summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.actor-filter-popover { position: absolute; top: calc(100% + 8px); right: 0; width: 270px; padding: 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #fff; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16); white-space: normal; }
+.actor-filter-popover { position: relative; width: 270px; margin-top: 8px; padding: 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #fff; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16); white-space: normal; }
 .actor-filter-popover p { margin: 0 0 8px; color: #64748b; font-size: 12px; }
 .actor-filter-options { display: grid; gap: 5px; max-height: min(360px, 55vh); overflow-y: auto; margin-bottom: 10px; }
 .actor-filter-options label { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; font-size: 13px; overflow-wrap: anywhere; }

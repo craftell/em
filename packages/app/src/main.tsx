@@ -1376,6 +1376,7 @@ function FlowWorkspace() {
         </div>
         {exportError ? <div className="toolbar-error" role="alert">{exportError}</div> : null}
       </header>
+      <div className="workspace">
       <ValidationPanel
         report={report}
         onSelect={focusNode}
@@ -1454,6 +1455,7 @@ function FlowWorkspace() {
         </GwtActions.Provider>
         </StoryActions.Provider>
       </CanvasNavigation>
+      </div>
     </div>
   );
 }
