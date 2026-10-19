@@ -4,7 +4,19 @@
     {
       "id": 1,
       "prompt": "Model an e-commerce checkout flow with cart, discounts, Stripe payment, double-charge prevention, and inventory constraints. Use English and write event-model YAML under a fresh project.",
-      "expected_output": "Creates config if needed, writes slice YAML files, events.yaml, and story index files. Slices include command, view, translation, and automation examples with valid screen types, block-scalar fields, and no top-level events/external flags.",
+      "expected_output": "Creates config if needed, writes slice YAML files, events.yaml, and story definitions in feature documents or existing standalone story files without duplicates. Slices include command, view, translation, and automation examples with valid screen types, block-scalar fields, and no top-level events/external flags.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Create a customer-onboarding feature with registration, welcome email, and home stories. Write an overview timeline where email and home follow registration, and a customer timeline that reuses registration and home. Keep slice definitions separate.",
+      "expected_output": "Writes a *.feature.yaml under configured features_dir with kind feature, numeric schema_version 1, stable feature/local story/timeline/step IDs, stories and timelines arrays, and project-root-relative slice paths. Uses after predecessor step IDs for layout only. Reuses stories across timelines without cloning slices or adding domain edges. Does not also create duplicate standalone stories.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Rename the display names in an existing feature and change its overview so home appears after email. Leave legacy headerless standalone stories, slices, events, and actors as they are.",
+      "expected_output": "Preserves feature/local story/timeline/step IDs and slice paths. Changes only requested display names and after layout constraints. Does not infer a causal dependency, migrate legacy documents, or add incomplete headers.",
       "files": []
     }
   ]

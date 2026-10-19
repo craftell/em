@@ -125,12 +125,18 @@ A detached viewer or a background shell loop alone cannot process feedback.
 4. Apply only the requested, authorized change to canonical YAML. Preserve
    unrelated edits. Ask about unresolved domain decisions. Do not automatically
    commit, reset, stash, delete files, or edit generated graph IDs.
-5. For actor edits, read the optional configured actor registry. Preserve stable
+5. For feature-story or timeline edits, use the captured source path to find the
+   owning `*.feature.yaml`. Embedded stories share that file. Match the feature
+   and local story IDs, not just the display name. Preserve feature, story,
+   timeline, and step IDs unless the requested change requires new identities.
+   Change `after` only for layout order. Do not invent domain connections or
+   clone canonical slices to make a timeline look right.
+6. For actor edits, read the optional configured actor registry. Preserve stable
    IDs, register new IDs before referencing them when a registry exists, and use
    actors only on user screens. Use quoted six-digit hex colors.
-6. Use `em-lint` and the project's available model checks. `em-lint` is a skill,
+7. Use `em-lint` and the project's available model checks. `em-lint` is a skill,
    not an emviz CLI subcommand. Describe actual checks and any checks not run.
-7. Reply with the same request ID and agent ID. Use a safe argument array or
+8. Reply with the same request ID and agent ID. Use a safe argument array or
    correct shell quoting for reply text. Never interpolate feedback as shell code.
 
 ```sh
@@ -145,6 +151,23 @@ If a reply fails, preserve the file edits. A failed reply does not roll them bac
 Check the error before retrying the same reply. Do not repeat edits or start a new
 request to conceal an uncertain result. If the session stops during work, stop
 further edits and report what already changed.
+
+## Select a timeline
+
+Use the toolbar\'s **Timeline** selector in **Current**. **All stories** shows
+all stories. Actor filters narrow the selected timeline; they do not bring in
+unrelated stories. A timeline is a presentation of canonical nodes and source
+files, so feedback still targets those sources.
+
+In **Session diff** and **Turn diff**, timeline selection is disabled and all
+stories remain available for review. Returning to **Current** restores the
+selected timeline preference. A layout-change notice reports changed timeline
+metadata, not an old-versus-new layout overlay.
+
+If a timeline is missing, inspect F1 findings before relying on the canvas.
+Invalid timelines are excluded. Structural feature or story errors prevent that
+feature\'s timelines from loading. Use `em-lint` and the companion YAML reference
+to check headers, IDs, references, repeated stories or slices, and layout cycles.
 
 ## Explain review and actor filters
 

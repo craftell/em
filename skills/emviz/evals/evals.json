@@ -36,6 +36,18 @@
       "prompt": "The viewer sends one request with clientBatchId and two items for different nodes. The top-level nodeId belongs to the first item. Handle the request and then resume polling.",
       "expected_output": "Reads and checks both captured targets before editing, handles every authorized item as one turn, reports unresolved items, replies once with the batch request ID, and resumes polling. Does not mistake the first top-level node for the complete batch.",
       "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Explain why my actor-filtered timeline shows fewer stories, why Timeline is disabled in Session diff and Turn diff, and why a timeline with a layout cycle is absent.",
+      "expected_output": "Explains timeline and actor filter intersection, All stories, diff views showing all stories, restoration of the selection in Current, and layout-change notices rather than old/new layout overlays. Inspects F1 findings for excluded invalid timelines without claiming the remaining canvas proves validity.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "A feedback request selects an embedded story from billing.feature.yaml in a timeline. Rename its display name and place it after another step. The captured revision still matches. Another story has the same display name in another feature.",
+      "expected_output": "Re-reads the captured owning feature file and resolves the selected story by feature/local IDs rather than display name. Preserves canonical source and feature/story/timeline/step IDs, edits only the requested name and after relation, and adds no domain edge or duplicate slice. Runs available model checks, replies once with actual results, and resumes polling.",
+      "files": []
     }
   ]
 }

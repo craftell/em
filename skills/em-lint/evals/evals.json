@@ -6,6 +6,18 @@
       "prompt": "Lint an event model where a command produces an event missing from events.yaml and a screen reads a query not defined in its slice.",
       "expected_output": "Reports schema/graph findings with file paths, including missing registry event and unresolved screen.reads reference, without editing files.",
       "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Lint feature documents with kind feature and schema_version 1. One has duplicate local IDs, an unknown story reference, an unknown after predecessor, a cycle, and repeated stories or slice paths within a timeline. Do not edit.",
+      "expected_output": "Reports applicable F1 findings with owning feature file paths and affected IDs. Distinguishes invalid timelines from structural feature/story errors that prevent the feature timelines from loading. Does not repair files silently or treat after as a domain dependency.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Lint legacy headerless story, slice, events, and actors files together with new feature files. Include one legacy file with only kind, another with the wrong kind, one with schema_version 2, and a feature without headers. A valid feature reuses stories across separate timelines.",
+      "expected_output": "Accepts headerless legacy documents and reuse across timelines. Reports F1 for incomplete header pairs, mismatched kinds, unsupported versions, and missing required feature headers. Does not require headers on every legacy file or reject valid cross-timeline reuse.",
+      "files": []
     }
   ]
 }
