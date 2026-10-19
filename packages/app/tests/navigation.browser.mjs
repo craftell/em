@@ -201,7 +201,7 @@ test("Auto reveals only selected cross-slice edges and Intra-slice and All stay 
   } finally { await page.close(); }
 });
 
-test("story collapse removes owned contents and dangling edges without camera jumps, and survives reload", async () => {
+test("story collapse summarizes owned contents and proxies cross-story edges without camera jumps, and survives reload", async () => {
   const { page, errors } = await open();
   try {
     await page.getByLabel("Edge visibility", { exact: true }).selectOption("all");
@@ -216,13 +216,15 @@ test("story collapse removes owned contents and dangling edges without camera ju
     }
     assert.ok((await node(page, "story-0").boundingBox()).height < expandedHeight, "collapsed story must have a compact rendered summary");
     await node(page, "command-1").waitFor();
-    await edges(page, localEdgeIds.filter((id) => id.endsWith("-1")));
+    await edges(page, [...localEdgeIds.filter((id) => id.endsWith("-1")), "cross-read"]);
+    assert.match(await page.locator('.react-flow__edge[data-id="cross-read"]').getAttribute("aria-label"), /story-0.*query-1/, "collapsed story must proxy its actual outgoing edge");
     await unchanged(page, async () => {
       await page.getByRole("button", { name: "Collapse all stories", exact: true }).click();
       await node(page, "command-1").waitFor({ state: "detached" });
     }, "collapsing all stories");
     assert.deepEqual((await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.dataset.id))).sort(), ["story-0", "story-1"]);
-    await edges(page, []);
+    await edges(page, ["cross-read"]);
+    assert.match(await page.locator('.react-flow__edge[data-id="cross-read"]').getAttribute("aria-label"), /story-0.*story-1/, "two collapsed endpoints must retain the real cross-story edge");
     await page.reload();
     await page.getByRole("button", { name: "Expand Alpha", exact: true }).waitFor();
     await page.getByRole("button", { name: "Expand Beta", exact: true }).waitFor();
@@ -355,15 +357,85 @@ test("sidebar wheel scroll remains local and Space in a text field does not acti
       assert.equal(await search.inputValue(), "Alpha command", "Space must type normally inside search");
       await search.fill("");
     }, "typing in search");
-    // The ignored Space press must not leave a latent pan state behind.
-    const point = await center(node(page, "command-0"));
-    const beforeDrag = await viewport(page);
-    await page.mouse.move(point.x, point.y);
-    await page.mouse.down();
-    await page.mouse.move(point.x + 35, point.y + 20, { steps: 3 });
-    await page.mouse.up();
-    await page.waitForTimeout(100);
-    sameViewport(await viewport(page), beforeDrag, "node drag without Space after editing");
+    assert.equal(await page.locator(".canvas").getAttribute("data-navigation-mode"), "idle", "typing Space must not leave a latent pan state");
+    await unchanged(page, () => selectNode(page, "command-0", "Alpha command"), "normal click after editing");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
+});
+
+test("Space drag captures an edge-label button without triggering field selection", async () => {
+  const { page, errors } = await open();
+  try {
+    await selectNode(page, "command-0", "Alpha command");
+    const label = page.locator(".edge-field-label").getByRole("button", { name: "id", exact: true }).first();
+    await label.waitFor();
+    await page.locator(".canvas").focus();
+    const start = await center(label);
+    const before = await viewport(page);
+    await page.mouse.move(start.x, start.y);
+    await page.keyboard.down("Space");
+    assert.equal(await page.locator(".canvas").getAttribute("data-navigation-mode"), "ready");
+    await page.mouse.down();
+    await page.mouse.move(start.x + 45, start.y + 30, { steps: 4 });
+    await page.waitForTimeout(50);
+    const dragged = await viewport(page);
+    closeTo(dragged.x - before.x, 45, "edge-label drag x");
+    closeTo(dragged.y - before.y, 30, "edge-label drag y");
+    assert.equal(await page.locator(".canvas").getAttribute("data-navigation-mode"), "dragging");
+    await page.mouse.up();
+    await page.keyboard.up("Space");
+    assert.equal(await page.locator(".canvas").getAttribute("data-navigation-mode"), "idle");
+    assert.equal(await page.getByRole("button", { name: "Clear field focus", exact: true }).count(), 0, "dragging must not activate the field button");
+    await unchanged(page, async () => {
+      await label.click();
+      await page.getByRole("button", { name: "Clear field focus", exact: true }).waitFor();
+    }, "normal field-button click after dragging");
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.mouse.up().catch(() => {});
+    await page.keyboard.up("Space").catch(() => {});
+    await page.close();
+  }
+});
+
+test("Space preserves native keyboard button activation and contenteditable input", async () => {
+  const { page, errors } = await open();
+  try {
+    const canvas = page.locator(".canvas");
+    await unchanged(page, async () => {
+      await page.getByRole("button", { name: "Collapse Alpha", exact: true }).focus();
+      await page.keyboard.down("Space");
+      assert.equal(await canvas.getAttribute("data-navigation-mode"), "idle", "Space on a keyboard button must not start navigation");
+      await page.keyboard.up("Space");
+      await page.getByRole("button", { name: "Expand Alpha", exact: true }).waitFor();
+      await node(page, "command-0").waitFor({ state: "detached" });
+    }, "keyboard collapse button");
+    await page.getByRole("button", { name: "Expand Alpha", exact: true }).focus();
+    await page.keyboard.press("Space");
+    await node(page, "command-0").waitFor();
+
+    // A DOM fixture exercises the generic editable guard without changing application state.
+    await page.getByRole("complementary", { name: "Node details" }).evaluate((panel) => {
+      const editor = document.createElement("div");
+      editor.contentEditable = "true";
+      editor.setAttribute("role", "textbox");
+      editor.setAttribute("aria-label", "Navigation contenteditable fixture");
+      editor.style.minHeight = "30px";
+      panel.prepend(editor);
+    });
+    const editor = page.getByRole("textbox", { name: "Navigation contenteditable fixture", exact: true });
+    await unchanged(page, async () => {
+      await editor.focus();
+      await page.keyboard.type("editable");
+      await page.keyboard.press("Space");
+      await page.keyboard.type("text");
+      assert.equal(await editor.textContent(), "editable text");
+      assert.equal(await canvas.getAttribute("data-navigation-mode"), "idle", "Space in contenteditable must stay an editing key");
+    }, "contenteditable input");
+    await unchanged(page, () => selectNode(page, "command-0", "Alpha command"), "normal selection after contenteditable input");
+    assert.deepEqual(errors, []);
+  } finally {
+    await page.keyboard.up("Space").catch(() => {});
+    await page.close();
+  }
 });
