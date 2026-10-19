@@ -14,9 +14,12 @@ The app browser suite also passed all 17 cases, including queue editing, removal
 
 The [feature timeline journey](features/feature-timelines.md) was executed on 2026-10-19
 on top of `ec87e4a` with `pnpm --filter @emviz/app test:browser:timelines`. It passed,
-including all seven invalid-input cases and the offline export. Evidence is kept
-outside the checkout; PR #11 names the location. Selecting a historical timeline in
-a diff is not tested because the selector is disabled there.
+including all seven invalid-input cases and the offline export. It passed again on
+2026-10-19 at `0c746e7` for the emviz 0.6.0 release candidate: 1 test, 20 recorded
+checks. That run's evidence is retained outside the checkout at
+`/home/kfukuyama/fm-homes/personal/data/emviz-0-6-0/timelines/2026-10-19T05-04-48-440Z-79133afe/`.
+Selecting a historical timeline in a diff is not tested because the selector is
+disabled there.
 
 Read the [feature map](features/README.md) before choosing a journey. Use a checkout containing the feedback implementation.
 

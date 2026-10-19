@@ -2,8 +2,9 @@
 
 Status: executed on 2026-10-19 on top of `ec87e4a` (PR #11) with
 `packages/app/tests/timelines.browser.mjs`. The run drove the built CLI and app in
-Chromium against a disposable project and passed. Video, trace, screenshots, ARIA
-snapshots, and `checks.json` are kept outside the checkout; the PR description
+Chromium against a disposable project and passed. It passed again at `0c746e7` for
+the emviz 0.6.0 release candidate (20 recorded checks). Video, trace, screenshots,
+ARIA snapshots, and `checks.json` are kept outside the checkout; the PR description
 names their location. Earlier feedback evidence does not cover timelines.
 
 ## Run it
