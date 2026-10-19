@@ -118,6 +118,30 @@ removed model elements remain available for review. Returning to Current restore
 the selected timeline preference. A layout-change notice flags changed timeline
 metadata; it does not draw old and new timeline layouts side by side.
 
+## Story summaries and connection visibility
+
+Each story header shows its slice count and can expand or collapse the story.
+The toolbar's **Expand all stories** and **Collapse all stories** controls apply
+to the current view. Collapse preferences are stored locally in the browser,
+separately for each project and timeline, using stable IDs. Renaming a display
+name does not change that identity. Unavailable or malformed storage must not
+prevent the viewer from working.
+
+The global **Edge visibility** selector defaults to **Auto**: intra-slice edges
+are visible; selecting a slice reveals all its incident cross-slice edges, and
+selecting an ordinary node reveals that node's incident cross-slice edges.
+**Intra-slice only** hides cross-slice edges regardless of selection. **All**
+shows all domain edges permitted by the current timeline and filters. Details
+still lists canonical incoming/outgoing connections in every mode.
+
+Collapsed-story connections summarize real domain edges and respect the edge
+mode. An `after` relation never creates a connection between story summaries.
+Use All and expanded stories when comparing the complete rendered domain graph.
+
+Selection, search/history, connection hover/clicks, and story expand/collapse
+preserve the viewport. Use **Focus selected node** or the canvas fit control for
+deliberate movement; focusing a node inside a collapsed story centers its summary.
+
 ## Validation and compatibility
 
 Feature-format errors appear as F1 findings. These include an unsupported schema

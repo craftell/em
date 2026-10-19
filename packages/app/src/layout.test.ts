@@ -139,7 +139,7 @@ describe("toFlow event-query routing", () => {
 
   it("routes cross-slice event reads into the side of the query facing the event", () => {
     const project = forwardCrossSliceProject();
-    const flow = toFlow(project);
+    const flow = toFlow(project, undefined, { edgeVisibility: "all" });
     const edge = flow.edges.find((candidate) => candidate.data?.kind === "event-query");
 
     expect(edge).toBeDefined();
@@ -285,5 +285,137 @@ describe("actor filters in layout", () => {
     });
     expect(flow.nodes.find((node) => node.id === screen.id)?.hidden).toBe(false);
     expect(flow.nodes.find((node) => node.id === screen.id)?.data.projectNode.actorDefinitions).toEqual(screen.actorDefinitions);
+  });
+});
+
+describe("canvas edge visibility", () => {
+  function ids(project: EventModelProject, selected?: string, edgeVisibility?: "auto" | "intra-slice" | "all") {
+    return toFlow(project, selected, { edgeVisibility }).edges.map((edge) => edge.id);
+  }
+
+  it("defaults to local edges and reveals only selected-node cross edges", () => {
+    const project = forwardCrossSliceProject();
+    project.nodes.push({ id: "other_query", type: "query", label: "Other", sourcePath: project.slices[1].path, sliceTitle: project.slices[1].title });
+    project.edges.push({ id: "other_read", kind: "event-query", source: "event_checkout_started", target: "other_query" });
+    expect(ids(project)).toEqual(["command_event"]);
+    expect(ids(project, "query_checkout_status")).toEqual(["command_event", "event_query"]);
+    expect(ids(project, "event_checkout_started")).toEqual(["command_event", "event_query", "other_read"]);
+    expect(ids(project, "command_start_checkout")).toEqual(["command_event"]);
+    expect(ids(project, "query_checkout_status", "intra-slice")).toEqual(["command_event"]);
+    expect(ids(project, undefined, "all")).toEqual(["command_event", "event_query", "other_read"]);
+  });
+
+  it("reveals incoming and outgoing cross edges for either selected slice", () => {
+    const project = forwardCrossSliceProject();
+    expect(ids(project, "slice_start_checkout")).toEqual(["command_event", "event_query"]);
+    expect(ids(project, "slice_view_checkout_status")).toEqual(["command_event", "event_query"]);
+    expect(ids(project, "story_checkout")).toEqual(["command_event"]);
+  });
+
+  it("uses producer source paths when events share a definitions file and slice labels collide", () => {
+    const project = forwardCrossSliceProject();
+    for (const node of project.nodes) {
+      if (node.type !== "story" && node.type !== "event") {
+        node.sourcePath = node.sliceTitle === project.slices[0].title ? project.slices[0].path : project.slices[1].path;
+      }
+    }
+    for (const slice of project.slices) slice.title = "Same";
+    for (const node of project.nodes) if (node.type !== "story") node.sliceTitle = "Same";
+    project.nodes.find((node) => node.type === "event")!.sourcePath = "events.yaml";
+    expect(ids(project)).toEqual(["command_event"]);
+    const cross = toFlow(project, "query_checkout_status").edges.find((edge) => edge.id === "event_query");
+    expect(cross?.data?.route).toBe("event-read");
+  });
+
+  it("does not reveal edges hidden by actor or diff filters", () => {
+    const project = forwardCrossSliceProject();
+    expect(toFlow(project, "query_checkout_status", {
+      actorFilter: { actorIds: ["missing"], includeUnassigned: false }, edgeVisibility: "all"
+    }).edges).toEqual([]);
+    const flow = toFlow(project, "query_checkout_status", {
+      diffFilter: "changed", diffNodeStatus: { command_start_checkout: "changed", event_checkout_started: "changed" },
+      diffEdgeStatus: { command_event: "changed", event_query: "changed" }, edgeVisibility: "all"
+    });
+    expect(flow.edges.map((edge) => edge.id)).toEqual(["command_event"]);
+  });
+});
+
+describe("collapsed story projection", () => {
+  function projectWithTwoStories() {
+    const project = forwardCrossSliceProject();
+    const targetPath = project.slices[1].path;
+    project.stories[0].id = "checkout";
+    project.stories[0].slices = [project.slices[0].path];
+    project.stories.push({ id: "status", name: "Status", description: "", path: "status.feature.yaml", slices: [targetPath] });
+    project.slices[0].storyId = "checkout";
+    project.slices[1].storyId = "status";
+    project.slices[1].storyName = "Status";
+    for (const node of project.nodes) {
+      node.storyId = node.sliceTitle === project.slices[1].title ? "status" : "checkout";
+      if (node.type !== "story" && node.type !== "event") node.sourcePath = node.storyId === "status" ? targetPath : project.slices[0].path;
+    }
+    project.nodes.push({ id: "story_status", type: "story", storyId: "status", label: "Status" });
+    return project;
+  }
+
+  it("keeps canonical nodes and edges while projecting cross-story endpoints onto headers", () => {
+    const project = projectWithTwoStories();
+    const before = JSON.stringify(project);
+    const expanded = toFlow(project, undefined, { edgeVisibility: "all" });
+    const collapsed = toFlow(project, undefined, { edgeVisibility: "all", collapsedStoryIds: new Set(["checkout"]) });
+    const header = collapsed.nodes.find((node) => node.id === "story_checkout")!;
+    expect(header.data).toMatchObject({ collapsed: true, storyId: "checkout", sliceCount: 1 });
+    expect(header.style?.height).toBe(92);
+    expect(header.hidden).toBe(false);
+    expect(collapsed.nodes.find((node) => node.id === "event_checkout_started")?.hidden).toBe(true);
+    expect(collapsed.nodes.find((node) => node.id === "command_start_checkout")?.data.storyId).toBe("checkout");
+    expect(collapsed.edges.map((edge) => edge.id)).toEqual(["event_query"]);
+    expect(collapsed.edges[0]).toMatchObject({
+      source: "story_checkout", target: "query_checkout_status",
+      data: { kind: "event-query", sourceNodeId: "event_checkout_started", targetNodeId: "query_checkout_status", proxy: true }
+    });
+    expect(JSON.stringify(project)).toBe(before);
+    expect(toFlow(project, undefined, { edgeVisibility: "all" })).toEqual(expanded);
+  });
+
+  it("does not synthesize domain edges from timeline ordering or collapse", () => {
+    const project = projectWithTwoStories();
+    project.timelines = [{ id: "journey", name: "Journey", path: "timeline.yaml", steps: [
+      { id: "one", storyId: "checkout", after: [] }, { id: "two", storyId: "status", after: ["one"] }
+    ] }];
+    const flow = toFlow(project, undefined, {
+      timelineId: "journey", edgeVisibility: "all", collapsedStoryIds: new Set(["checkout", "status"])
+    });
+    expect(flow.edges).toHaveLength(1);
+    expect(flow.edges[0]).toMatchObject({ id: "event_query", source: "story_checkout", target: "story_status", data: { kind: "event-query" } });
+    project.edges = [];
+    expect(toFlow(project, undefined, { timelineId: "journey", edgeVisibility: "all", collapsedStoryIds: new Set(["checkout", "status"]) }).edges).toEqual([]);
+  });
+
+  it("keeps Auto and Intra-slice visibility rules when endpoints are collapsed", () => {
+    const project = projectWithTwoStories();
+    const collapsedStoryIds = new Set(["checkout"]);
+    expect(toFlow(project, undefined, { collapsedStoryIds }).edges).toEqual([]);
+    expect(toFlow(project, "query_checkout_status", { collapsedStoryIds }).edges.map((edge) => edge.id)).toEqual(["event_query"]);
+    expect(toFlow(project, "query_checkout_status", { collapsedStoryIds, edgeVisibility: "intra-slice" }).edges).toEqual([]);
+  });
+
+  it("keeps collapsed headers visible for matching diff descendants without leaking other edges", () => {
+    const project = projectWithTwoStories();
+    const flow = toFlow(project, undefined, {
+      collapsedStoryIds: new Set(["checkout"]), edgeVisibility: "all",
+      diffFilter: "changed", diffNodeStatus: { event_checkout_started: "changed", query_checkout_status: "changed" },
+      diffEdgeStatus: { event_query: "changed" }
+    });
+    expect(flow.nodes.find((node) => node.id === "story_checkout")?.hidden).toBe(false);
+    expect(flow.edges.map((edge) => edge.id)).toEqual(["event_query"]);
+  });
+
+  it("selection changes do not alter the collapsed layout", () => {
+    const project = projectWithTwoStories();
+    const options = { collapsedStoryIds: new Set(["checkout"]) };
+    const positions = (selected?: string) => toFlow(project, selected, options).nodes.map(({ id, position, style }) => ({ id, position, style }));
+    expect(positions("query_checkout_status")).toEqual(positions());
+    expect(positions("event_checkout_started")).toEqual(positions());
   });
 });

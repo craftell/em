@@ -21,6 +21,12 @@ checks. That run's evidence is retained outside the checkout at
 Selecting a historical timeline in a diff is not tested because the selector is
 disabled there.
 
+The [canvas navigation journey](features/canvas-navigation.md) covers edge
+visibility, story accordions and scoped persistence, canonical proxy connections,
+stable selection viewports, and mouse/trackpad gestures. It is authored and
+unexecuted for this change. The historical passes above do not cover these new
+behaviors; report new automated and manual results separately.
+
 Read the [feature map](features/README.md) before choosing a journey. Use a checkout containing the feedback implementation.
 
 ## Launch
@@ -83,6 +89,31 @@ pnpm --filter @emviz/app test:browser
 The [actor journey](features/actors.md) adds registry tags, multi-selection, bounded system context, and historical metadata checks. Its browser recording and screenshots remain unexecuted for the actor change.
 
 That older suite uses intercepted API fixtures for many checks. Its pass does not replace the new real-server feedback journey.
+
+## Canvas and story controls
+
+After building the final app, run the new regression entry point:
+
+```sh
+pnpm --filter @emviz/app test:browser:navigation
+```
+
+Also rerun the existing browser and timeline suites. The
+[canvas navigation journey](features/canvas-navigation.md) is the acceptance
+checklist, including storage failures, project/timeline isolation, explicit
+focus, and platform/device paths. Do not claim every checklist item is automated
+or passed merely because the entry point exists.
+
+Choose **All** in **Edge visibility** and **Expand all stories** when a test
+compares the complete rendered domain-edge set. Auto hides cross-slice edges
+until a slice or node is selected; collapsed stories may replace visible domain
+edges with proxies. Neither display choice changes canonical connections.
+Sidebar incoming/outgoing connections remain available. Selection, search,
+history, connection clicks/hover, and story toggles must not move the viewport;
+**Focus selected node** is an explicit camera action.
+
+The distributable skill's new eval cases are authored expectations. Record an
+agent-evaluation result only after an actual evaluation run.
 
 ## Evidence
 

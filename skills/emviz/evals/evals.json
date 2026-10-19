@@ -48,6 +48,24 @@
       "prompt": "A feedback request selects embedded story signup in feature billing from billing.feature.yaml. Rename it to Start subscription. In timeline overview, place its step signup-step after existing step eligibility-step. The captured revision still matches. Another feature has a story with the same display name.",
       "expected_output": "Re-reads the captured owning feature file and resolves the selected story by feature/local IDs rather than display name. Preserves canonical source and feature/story/timeline/step IDs, edits only the requested name and after relation, and adds no domain edge or duplicate slice. Runs available model checks, replies once with actual results, and resumes polling.",
       "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "The new viewer hides lines between slices until I click a slice. Explain Auto, Intra-slice only, and All. I selected a slice with several incoming and outgoing connections, then selected just one command. The Details sidebar still lists connections whose lines are hidden. Should I add the missing connections to YAML?",
+      "expected_output": "Explains that Auto defaults to intra-slice edges, selected slices reveal every incident incoming and outgoing cross-slice domain edge, and selected ordinary nodes reveal only their own incident cross-slice edges. Intra-slice only suppresses cross-slice edges regardless of selection; All shows eligible domain edges within the active filters. Sidebar connections remain canonical and usable. Does not edit YAML or infer a missing domain connection from canvas visibility, and checks that the running viewer supports the controls.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Collapse a story in one feature timeline, rename only its display name, and refresh. Explain what should persist when I switch timelines or projects. Another timeline's after relation places two stories next to each other without a domain connection; should their collapsed cards be connected? Browser storage may be malformed or unavailable.",
+      "expected_output": "Describes story accordion slice counts and Expand all stories/Collapse all stories, project-and-timeline-scoped browser-local state using stable IDs, persistence across display-name changes and refresh, and isolation from other projects and timelines. Malformed or unavailable storage falls back safely without breaking viewer toggles. Collapsed proxy edges represent actual domain edges subject to visibility mode; after chronology creates none. Does not alter canonical YAML for display preferences.",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "On this updated viewer, I want to inspect a node without the camera jumping, then move to it deliberately. Explain Space-drag over nodes and edges, mouse wheel gestures on Mac and Windows, trackpad gestures, typing in feedback, and scrolling the sidebar.",
+      "expected_output": "Explains that selection (including search and history), hover, and expand/collapse do not automatically move the viewport; Focus selected node or explicit fit controls move it deliberately. Space-drag pans over nodes and edges, excludes editable targets, and releases on keyup or window blur. Plain wheel pans vertically, Shift+wheel horizontally, macOS Cmd+wheel and Windows Ctrl+wheel zoom around the cursor, two-axis trackpad scrolling pans and pinch zooms. Sidebar scrolling stays local and shortcuts do not interfere with typing. Does not claim these authored expectations or browser journeys were executed.",
+      "files": []
     }
   ]
 }

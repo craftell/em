@@ -9,12 +9,13 @@ It is not a YAML editor. The canonical model stays in your Event Modeling files;
 ## Features
 
 1. **Visualize Event Modeling YAML**
-   - Story lanes and slice groups show the narrative flow.
+   - Story lanes and slice groups show the narrative flow; story headers show slice counts and can collapse to summaries.
    - Feature files group stories and timeline layouts, including branches and visual joins.
    - Screens, processors, commands, events, queries, and GWT cases are rendered as graph nodes.
 
 2. **Trace connections**
    - Click a node to inspect incoming and outgoing connections.
+   - Choose Auto, Intra-slice only, or All for canvas edge visibility; sidebar connections stay available.
    - Search by node name, type, or source path.
    - Select a field name to see where data flows through events and queries.
 
@@ -257,11 +258,13 @@ event-model/
    - Shows story, slice, and event counts.
    - Provides back / forward selection history.
    - Searches nodes by name, type, or source path.
+   - Sets edge visibility and expands or collapses all stories in the current view.
 
 2. **Canvas**
    - Shows stories and slices as background groups.
    - Draws behavior flow from screen / processor to command, command to event, and event to query.
-   - Uses React Flow controls for zoom and fit view.
+   - Keeps the viewport stable during selection, hover, and story toggles.
+   - Provides explicit Focus selected node, zoom, and fit controls.
 
 3. **Right sidebar**
    - **Details** retains source, connections, fields, findings, and GWT inspection.
@@ -273,6 +276,31 @@ event-model/
 4. **Validation drawer**
    - Open it from the `!` button in the lower-left corner.
    - Use `Focus` on a finding to jump to the related node.
+
+## Canvas controls
+
+**Edge visibility** defaults to **Auto**. It shows intra-slice edges, plus all
+incident cross-slice edges when a slice is selected or the selected node's
+incident cross-slice edges when an ordinary node is selected. **Intra-slice only**
+hides cross-slice edges regardless of selection; **All** shows eligible domain
+edges within the current timeline and filters. Hidden lines do not remove
+connections from Details or canonical YAML.
+
+Collapse individual story headers, or use **Expand all stories** /
+**Collapse all stories**. Preferences stay in the browser, scoped by project
+and timeline with stable IDs. Summary connections represent real domain edges;
+timeline `after` order does not create connections.
+
+Selection, search/history, connection clicks/hover, and story toggles do not
+move the camera. Use **Focus selected node** to center the selection, including
+its story summary when collapsed, or use the canvas fit control.
+
+- **Space + drag** pans from the canvas, nodes, or edges. Releasing Space or
+  leaving the window clears pan mode; typing fields retain normal behavior.
+- The wheel pans vertically; **Shift + wheel** pans horizontally.
+- **Cmd + wheel** on macOS and **Ctrl + wheel** on Windows zoom at the cursor.
+- Two-finger trackpad scrolling pans on both axes; pinch zooms.
+- Scrolling in the sidebar scrolls that panel without moving the canvas.
 
 ## Understand Anything Integration
 
@@ -329,6 +357,12 @@ node packages/cli/dist/index.js .
 ```
 
 The [verify-emviz guide](.agents/skills/verify-emviz/SKILL.md) records the executed local real-server feedback journey and the 17 fixture browser cases. The real-server actor journey, two-machine remote-access journey, and the full startup-baseline fallback browser journey remain unexecuted. Those local checks do not start a real LLM. The [feature timeline journey](.agents/skills/verify-emviz/features/feature-timelines.md) was executed with `pnpm --filter @emviz/app test:browser:timelines` and passed.
+
+The [canvas navigation journey](.agents/skills/verify-emviz/features/canvas-navigation.md)
+and `pnpm --filter @emviz/app test:browser:navigation` cover the new acceptance
+requirements. They are authored but unexecuted for this change; prior-release
+verification does not establish a pass for edge modes, accordion persistence,
+or the new input behavior.
 
 ## Package Layout
 

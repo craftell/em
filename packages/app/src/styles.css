@@ -70,6 +70,9 @@ button[aria-pressed="true"] {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  width: max-content;
+  max-width: calc(100vw - 32px);
   padding: 10px 12px;
   border: 1px solid #d8dee8;
   border-radius: 8px;
@@ -1768,3 +1771,68 @@ pre {
 
 .timeline-picker { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
 .timeline-picker select { max-width: 280px; min-width: 90px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #0f172a; }
+
+.edge-visibility-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.edge-visibility-picker select {
+  max-width: 140px;
+  padding: 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: white;
+}
+
+.story-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  font: inherit;
+  text-align: left;
+}
+
+.story-slice-count {
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.story-controls {
+  flex-shrink: 0;
+}
+
+.canvas[data-navigation-mode="ready"],
+.canvas[data-navigation-mode="ready"] .react-flow__node,
+.canvas[data-navigation-mode="ready"] .react-flow__edge {
+  cursor: grab;
+}
+
+.canvas[data-navigation-mode="dragging"],
+.canvas[data-navigation-mode="dragging"] * {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.canvas-navigation-help {
+  position: absolute;
+  bottom: 14px;
+  left: 58px;
+  max-width: calc(100% - 400px);
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #475569;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+@media (max-width: 850px) {
+  .canvas-navigation-help {
+    display: none;
+  }
+}

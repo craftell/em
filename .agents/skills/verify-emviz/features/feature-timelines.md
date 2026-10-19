@@ -15,13 +15,18 @@ EMVIZ_EVIDENCE_DIR=/path/outside/the/checkout \
   pnpm --filter @emviz/app test:browser:timelines
 ```
 
-The script automates every numbered step below and every invalid case. The trace
-holds the session token, so do not share it. What the run did not cover:
+The historical script automated the original timeline journey and invalid cases.
+The edge-mode and accordion guidance below is new and unexecuted for this change;
+rerun the final script and record exactly which current paths it exercises.
+The trace holds the session token, so do not share it. What the historical run
+did not cover:
 
 - Selecting a historical timeline in a diff view. The selector is disabled there,
   and the run asserts that it is disabled.
 - A real second machine, a long-lived session, or a project with more than the
   sample's five stories.
+- Edge visibility modes, story accordions/persistence, domain-only proxy edges,
+  and the new canvas input model; see [canvas navigation](canvas-navigation.md).
 
 ## Sub-features
 
@@ -65,7 +70,9 @@ Drive controls through their accessible labels. Do not inject internal app state
 1. Find the selector with `getByLabel("Timeline", { exact: true })`.
    Select the option whose displayed timeline name is **Onboarding overview**.
    Read its actual option value from the DOM rather than constructing an internal ID.
-2. Capture the canvas and ARIA snapshot.
+2. Choose **All** in **Edge visibility** and **Expand all stories** so that
+   connection assertions inspect the complete eligible rendered graph.
+   Capture the canvas and ARIA snapshot.
    Confirm **Register customer** precedes both **Send welcome email** and
    **View customer home**. The two successor story groups must not overlap.
    Confirm no layout-only edge connects those two stories.
@@ -84,7 +91,8 @@ Drive controls through their accessible labels. Do not inject internal app state
 6. Refresh through the UI. Select the overview again.
    Confirm the subscription story starts to the right of both predecessor groups.
    Capture the action, resulting layout, and changed YAML.
-7. Change only the `after` array and compare domain connections before and after.
+7. With **All** edges and expanded stories, change only the `after` array and
+   compare domain connections before and after.
    Existing screen, command, event, and query edges must retain their endpoints.
    A layout change must not invent a causal edge.
 8. Open **Agent**, then **Session diff**. Confirm the timeline selector is disabled
@@ -134,13 +142,19 @@ because the owner changed. This predates timelines and is a follow-up, not a
 failed check.
 
 The right sidebar floats over the canvas. After a refresh that adds a story, the
-new story may sit under it. The viewport fits only when a timeline is selected.
+new story may sit under it. Use **Focus selected node** or the canvas fit control
+to move deliberately. Selecting a node, using history/search, hovering or
+clicking a connection, and expanding/collapsing stories must not move the camera.
 
 Timeline option labels include the feature file path and truncate in the select.
 Read option values from the DOM, as the script does.
 
-Boundary events from other stories render left of the timeline with long edges.
-This is expected.
+Boundary events from other stories can render left of the timeline. Cross-slice
+edge visibility follows the global mode: Auto reveals incident edges on selection,
+Intra-slice only hides them, and All shows eligible domain edges. A hidden line
+does not mean the domain connection disappeared. Sidebar connections remain
+canonical. Collapsed-story proxy edges must derive from domain edges, never
+from `after` chronology.
 
 Keep screenshots for the branch, join, selected timeline, actor-filtered view,
 diagnostic, diff, and exported HTML. Retain ARIA snapshots, trace, recording,

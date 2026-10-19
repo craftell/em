@@ -238,6 +238,7 @@ test("a user selects, reviews, exports and validates feature timelines", { timeo
     assert.ok(Math.abs(welcome.x - home.x) < 1, "siblings must share one horizontal stage");
     assert.ok(welcome.y + welcome.height <= home.y || home.y + home.height <= welcome.y, "sibling groups must not overlap");
     for (const id of [ids.register, ids.welcome, ids.home]) assert.ok(await inViewport(id), id + " must be fitted into the viewport");
+    await page.getByLabel("Edge visibility", { exact: true }).selectOption("all");
     const overviewEdges = await edgeLabels();
     const canonicalIds = new Set((await snapshot()).project.nodes.map((item) => item.id));
     for (const label of overviewEdges) {
@@ -284,21 +285,25 @@ test("a user selects, reviews, exports and validates feature timelines", { timeo
     await capture("04-selection-cleared-outside-timeline");
     record("selection", "Selection clears when its node leaves the timeline; search is bounded by it");
 
-    // 3b. Navigating to a node outside the timeline leaves the timeline and centers the node.
+    // Explicit focus centers the selected node after leaving its timeline.
     await chooseTimeline("Onboarding overview");
     await searchSelect("SubscriptionStarted", "event");
     assert.equal(await present("cmd_start_subscription"), false, "the producer lies outside the timeline");
+    const selectionViewport = await page.locator(".react-flow__viewport").getAttribute("style");
     await page.getByRole("complementary", { name: "Node details" }).getByRole("button", { name: "StartSubscription", exact: true }).click();
     assert.equal(await timelineSelect().inputValue(), "", "navigating outside the timeline returns to All stories");
     await page.waitForTimeout(1200);
     assert.ok(await present("cmd_start_subscription"));
+    assert.equal(await page.locator(".react-flow__viewport").getAttribute("style"), selectionViewport, "connection selection must not move the viewport");
+    await page.getByRole("button", { name: "Focus selected node", exact: true }).click();
+    await settle();
     assert.match(await page.getByRole("complementary", { name: "Node details" }).locator("h2").innerText(), /StartSubscription/);
     const target = await box("cmd_start_subscription");
     const canvas = await page.getByRole("main", { name: "Event model diagram" }).boundingBox();
     assert.ok(Math.abs(target.x + target.width / 2 - (canvas.x + canvas.width / 2)) < 80 && Math.abs(target.y + target.height / 2 - (canvas.y + canvas.height / 2)) < 80,
       "the target must be centered after the timeline changes: " + JSON.stringify({ target, canvas }));
     await capture("04b-navigate-outside-timeline");
-    record("leave-timeline-navigation", "A connection outside the selected timeline reset the selector to All stories and centered " + JSON.stringify(target));
+    record("leave-timeline-navigation", "A connection selection kept the viewport and reset the selector to All stories; explicit focus centered " + JSON.stringify(target));
 
     // 4. Actor filter inside the selected timeline.
     await chooseTimeline("Onboarding overview");

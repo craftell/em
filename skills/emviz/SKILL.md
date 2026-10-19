@@ -171,6 +171,63 @@ Invalid timelines are excluded. Structural feature or story errors prevent that
 feature\'s timelines from loading. Use `em-lint` and the companion YAML reference
 to check headers, IDs, references, repeated stories or slices, and layout cycles.
 
+## Inspect connections and collapsed stories
+
+The canvas controls below require a viewer build containing these changes; they
+may be absent from the pinned 0.6.0 package. Inspect the running viewer before
+describing its controls, and do not silently install or upgrade it.
+
+Use the toolbar's **Edge visibility** control:
+
+- **Auto** is the default. It shows intra-slice edges. Selecting a slice also
+  reveals every incoming and outgoing cross-slice domain edge incident to that
+  slice. Selecting an ordinary node reveals that node's incident cross-slice
+  edges, not every edge of its slice.
+- **Intra-slice only** keeps cross-slice edges hidden even when a node or slice
+  is selected.
+- **All** shows all domain edges allowed by the current timeline, actor, and
+  review filters. Choose it when comparing the full rendered connection set.
+
+These are display choices, not model edits. The Details sidebar's incoming and
+outgoing connections still describe canonical domain connections, including
+edges hidden on the canvas. Use those connections to inspect or navigate to a
+related node. Never infer that a hidden edge is missing from YAML, and never add
+a connection just to make it visible.
+
+Each story header can expand or collapse its contents and shows a slice count.
+Use **Expand all stories** or **Collapse all stories** for the current view. Collapsed stories
+summarize their contents; any visible proxy connections come from actual domain
+edges, still subject to the edge visibility mode. Timeline `after` constraints
+never create proxy edges. Expanding restores the underlying nodes and identities.
+
+Collapse preferences are browser-local and scoped to the project and selected
+timeline, including **All stories**. They use stable story and timeline IDs,
+not display names or positions. Refreshing restores the same scope; another
+project or timeline has its own state. Malformed or unavailable browser storage
+must not prevent viewing or toggling stories. Collapse state does not change
+canonical YAML or travel as a model edit.
+
+## Move around the canvas
+
+Selection, hover, and story expand/collapse do not automatically pan, zoom, or
+fit the viewport. Search, Back/Forward history, and incoming/outgoing connection clicks
+also preserve the viewport. Use **Focus selected node** or the canvas fit/zoom controls to move
+deliberately. Focusing a node hidden inside a collapsed story centers that story's
+summary without expanding unrelated stories. A node can be selected in Details
+while it is outside the visible viewport. A connection target outside the selected
+timeline may switch the view to All stories without fitting the camera.
+
+- Hold **Space** and drag to pan, including when starting over a node or edge.
+  Release Space to leave pan mode; losing window focus also clears it.
+- A mouse wheel pans vertically; **Shift + wheel** pans horizontally.
+- **Cmd + wheel** on macOS or **Ctrl + wheel** on Windows zooms around the cursor.
+- Two-finger trackpad scrolling pans on both axes; pinch zooms around the cursor.
+
+Canvas shortcuts must not intercept typing in inputs, textareas, selects, or
+editable content. Scroll inside the right sidebar to scroll its content; it
+must not pan or zoom the canvas. Ordinary selection and feedback controls remain
+available after repeated gestures or a window-focus change.
+
 ## Explain review and actor filters
 
 Use **Current** for files on disk. Use **Session diff** against the fixed startup

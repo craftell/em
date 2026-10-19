@@ -1,4 +1,5 @@
 import { nodeStoryKey, projectTimeline, storyKey, timelineRanks } from "./timeline";
+import { canvasMembership, stableStoryId, visibleDomainEdge, type EdgeVisibility } from "./canvasState";
 import { actorVisibility, type ActorFilter } from "./actors";
 import { MarkerType, type Edge, type Node, Position } from "@xyflow/react";
 import type { EventModelProject, FieldFlow, GraphDiffStatus, ProjectNode, TimelineModel } from "./types";
@@ -31,6 +32,9 @@ type NodeData = {
   diffStatus?: GraphDiffStatus;
   scenarios?: ProjectNode[];
   selectedScenarioId?: string;
+  storyId?: string;
+  collapsed?: boolean;
+  sliceCount?: number;
 };
 
 function edgeColor(kind: string): string {
@@ -105,7 +109,7 @@ function eventNodesForSlice(project: EventModelProject, nodeById: Map<string, Pr
   const commands = new Set(sliceNodes(project, slicePath, "command").map((node) => node.id));
   const eventIds = new Set(
     project.edges
-      .filter((edge) => edge.kind === "command-event" && commands.has(edge.source))
+      .filter((edge) => edge.kind === "command-event" && commands.has(edge.source) && project.edges.find((candidate) => candidate.kind === "command-event" && candidate.target === edge.target)?.id === edge.id)
       .map((edge) => edge.target)
   );
 
@@ -142,16 +146,17 @@ function buildSliceMetrics(project: EventModelProject, nodeById: Map<string, Pro
   );
 }
 
-function buildStoryLayouts(project: EventModelProject, sliceMetrics: Map<string, SliceMetrics>, timeline?: TimelineModel): Map<string, StoryLayout> {
+function buildStoryLayouts(project: EventModelProject, sliceMetrics: Map<string, SliceMetrics>, timeline?: TimelineModel, collapsedStoryIds: ReadonlySet<string> = new Set()): Map<string, StoryLayout> {
   const layouts = new Map<string, StoryLayout>();
   let nextY = STORY_Y;
 
   for (const story of project.stories) {
     const storySlices = project.slices.filter((slice) => (slice.storyId ?? slice.storyName) === storyKey(story));
     const totalSliceWidth = storySlices.reduce((sum, slice) => sum + (sliceMetrics.get(slice.path)?.width ?? MIN_SLICE_WIDTH), 0);
-    const width = Math.max(totalSliceWidth + Math.max(storySlices.length - 1, 0) * SLICE_GAP_X, MIN_SLICE_WIDTH);
+    const collapsed = collapsedStoryIds.has(stableStoryId(story));
+    const width = collapsed ? MIN_SLICE_WIDTH : Math.max(totalSliceWidth + Math.max(storySlices.length - 1, 0) * SLICE_GAP_X, MIN_SLICE_WIDTH);
     const maxSliceHeight = Math.max(...storySlices.map((slice) => sliceMetrics.get(slice.path)?.height ?? MIN_SLICE_HEIGHT), MIN_SLICE_HEIGHT);
-    const height = STORY_HEADER_HEIGHT + maxSliceHeight + STORY_PADDING_BOTTOM;
+    const height = collapsed ? STORY_HEADER_HEIGHT : STORY_HEADER_HEIGHT + maxSliceHeight + STORY_PADDING_BOTTOM;
     layouts.set(storyKey(story), { x: STORY_X, y: nextY, width, height });
     nextY += height + STORY_GAP_Y;
   }
@@ -241,22 +246,24 @@ function routedSides(
   source?: ProjectNode,
   target?: ProjectNode,
   sourceRect?: Rect,
-  targetRect?: Rect
+  targetRect?: Rect,
+  sameSlice?: boolean,
+  sameStory?: boolean
 ): { sourceSide: Side; targetSide: Side; route: RouteKind } {
   const semantic = semanticSides(edgeKind);
-  const isSameSlice = source?.sliceTitle && source.sliceTitle === target?.sliceTitle;
+  const isSameSlice = sameSlice ?? Boolean(source?.sliceTitle && source.sliceTitle === target?.sliceTitle);
   if (edgeKind === "event-query" && isSameSlice) {
     return { ...semantic, route: "same-slice-read" };
   }
 
-  const isCrossSliceEventRead = edgeKind === "event-query" && source?.sliceTitle !== target?.sliceTitle;
+  const isCrossSliceEventRead = edgeKind === "event-query" && !isSameSlice;
   if (!isCrossSliceEventRead || !sourceRect || !targetRect) return { ...semantic, route: "semantic" };
 
   const sourceCenterX = sourceRect.x + sourceRect.width / 2;
   const sourceCenterY = sourceRect.y + sourceRect.height / 2;
   const targetCenterX = targetRect.x + targetRect.width / 2;
   const targetCenterY = targetRect.y + targetRect.height / 2;
-  const isSameStory = source && target && nodeStoryKey(source) && nodeStoryKey(source) === nodeStoryKey(target);
+  const isSameStory = sameStory ?? Boolean(source && target && nodeStoryKey(source) && nodeStoryKey(source) === nodeStoryKey(target));
 
   return {
     sourceSide: isSameStory || targetCenterY >= sourceCenterY ? "bottom" : "top",
@@ -273,6 +280,8 @@ export function toFlow(
     scope?: VisibilityScope;
     focusedStory?: string;
     edgeDetail?: EdgeDetail;
+    edgeVisibility?: EdgeVisibility;
+    collapsedStoryIds?: ReadonlySet<string>;
     focusedEdgeIds?: Set<string>;
     edgeFieldFlows?: Map<string, FieldFlow>;
     selectedFieldName?: string;
@@ -298,8 +307,12 @@ export function toFlow(
   const storyIndexes = storyIndex(project);
   const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
   const sliceMetrics = buildSliceMetrics(project, nodeById);
+  const membership = canvasMembership(project, Boolean(timeline));
+  const stableStoryIds = new Map(project.stories.map((story) => [storyKey(story), stableStoryId(story)]));
+  const collapsedStoryIds = options.collapsedStoryIds ?? new Set<string>();
+  const storyNodeIds = new Map(project.nodes.filter((node) => node.type === "story").map((node) => [node.storyId ?? node.label, node.id]));
   const sliceKey = (node?: ProjectNode) => node?.sourcePath ?? project.slices.find((slice) => slice.title === (node?.sliceTitle ?? node?.label))?.path ?? "";
-  const storyLayouts = buildStoryLayouts(project, sliceMetrics, timeline);
+  const storyLayouts = buildStoryLayouts(project, sliceMetrics, timeline, collapsedStoryIds);
   const positions = new Map<string, { x: number; y: number }>();
   const rects = new Map<string, Rect>();
   const sliceOrigins = new Map<string, { x: number; y: number }>();
@@ -399,6 +412,7 @@ export function toFlow(
     }
   }
 
+  const baseVisibleIds = new Set<string>();
   const nodes = project.nodes.map((node) => {
     const position = positions.get(node.id) ?? { x: 0, y: 0 };
     const isContainer = node.type === "story" || node.type === "slice";
@@ -415,6 +429,12 @@ export function toFlow(
     });
 
     const scenarios = node.type === "gwt" ? project.nodes.filter((candidate) => candidate.type === "gwt" && (node.sourcePath ? candidate.sourcePath === node.sourcePath : candidate.sliceTitle === node.sliceTitle)).filter((candidate) => actorView.nodeIds.has(candidate.id) && (!nodeStoryKey(candidate) || visibleStories.has(nodeStoryKey(candidate)!))).filter((candidate) => !options.diffFilter || options.diffFilter === "all" || options.diffNodeStatus?.[candidate.id] === options.diffFilter) : undefined;
+    const storyId = stableStoryIds.get(membership.storyByNode.get(node.id) ?? "");
+    const collapsed = Boolean(storyId && collapsedStoryIds.has(storyId));
+    const baseHidden = !actorView.nodeIds.has(node.id) || Boolean(scenarios && scenarios[0]?.id !== node.id) ||
+      Boolean(membership.storyByNode.get(node.id) && !visibleStories.has(membership.storyByNode.get(node.id)!)) ||
+      Boolean(!scenarios && options.diffFilter && options.diffFilter !== "all" && options.diffNodeStatus?.[node.id] !== options.diffFilter);
+    if (!baseHidden) baseVisibleIds.add(node.id);
     return {
       id: node.id,
       type: isContainer ? "groupNode" : "eventModelNode",
@@ -425,6 +445,9 @@ export function toFlow(
       draggable: false,
       data: {
         projectNode: node,
+        storyId,
+        collapsed: node.type === "story" ? collapsed : undefined,
+        sliceCount: node.type === "story" ? project.slices.filter((slice) => (slice.storyId ?? slice.storyName) === (node.storyId ?? node.label)).length : undefined,
         scenarios,
         scenarioStatus: options.diffNodeStatus,
         selectedScenarioId: selectedId,
@@ -433,8 +456,7 @@ export function toFlow(
         actorRelated: actorView.relatedNodeIds.has(node.id),
         diffStatus: options.diffNodeStatus?.[node.id]
       },
-      hidden: !actorView.nodeIds.has(node.id) || Boolean(scenarios && scenarios[0]?.id !== node.id) || Boolean(nodeStoryKey(node) && !visibleStories.has(nodeStoryKey(node)!)) ||
-        Boolean(!scenarios && options.diffFilter && options.diffFilter !== "all" && options.diffNodeStatus?.[node.id] !== options.diffFilter),
+      hidden: baseHidden || (node.type !== "story" && collapsed),
       style: isContainer
         ? { width, height, zIndex: node.type === "story" ? -20 : -10, opacity: actorView.relatedNodeIds.has(node.id) ? 0.72 : 1 }
         : { width: nodeWidth, height: node.type === "gwt" ? GWT_HEIGHT : undefined, opacity: actorView.relatedNodeIds.has(node.id) ? 0.72 : 1 },
@@ -442,33 +464,56 @@ export function toFlow(
     };
   });
 
+  // A collapsed container remains available when its filtered contents match.
+  for (const node of nodes) {
+    if (node.data.projectNode.type !== "story" || !node.data.collapsed) continue;
+    if (project.nodes.some((member) => member.type !== "story" && baseVisibleIds.has(member.id) &&
+      stableStoryIds.get(membership.storyByNode.get(member.id) ?? "") === node.data.storyId)) node.hidden = false;
+  }
   const visibleNodeIds = new Set(nodes.filter((node) => !node.hidden).map((node) => node.id));
+  const endpoint = (id: string): string => {
+    const owner = membership.storyByNode.get(id);
+    const stableId = owner ? stableStoryIds.get(owner) : undefined;
+    return stableId && collapsedStoryIds.has(stableId) ? storyNodeIds.get(owner!) ?? id : id;
+  };
+  const selected = selectedId ? nodeById.get(selectedId) : undefined;
   const visibleEdges = project.edges
     .filter((edge) => visibleEdgeKinds.has(edge.kind))
-    .filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
+    .filter((edge) => visibleDomainEdge(edge, options.edgeVisibility ?? "auto", selected, membership))
+    .filter((edge) => baseVisibleIds.has(edge.source) && baseVisibleIds.has(edge.target))
+    .filter((edge) => visibleNodeIds.has(endpoint(edge.source)) && visibleNodeIds.has(endpoint(edge.target)))
+    .filter((edge) => endpoint(edge.source) !== endpoint(edge.target) || (endpoint(edge.source) === edge.source && endpoint(edge.target) === edge.target));
   const edges = visibleEdges.map((edge) => {
+    const source = endpoint(edge.source);
+    const target = endpoint(edge.target);
+    const proxy = source !== edge.source || target !== edge.target;
     const sourceNode = nodeById.get(edge.source);
     const targetNode = nodeById.get(edge.target);
     const active = Boolean(options.focusedEdgeIds?.has(edge.id));
     const diffStatus = options.diffEdgeStatus?.[edge.id];
     const diffColor = diffEdgeColor(diffStatus);
-    const { sourceSide, targetSide, route } = routedSides(
-      edge.kind,
-      sourceNode,
-      targetNode,
-      rects.get(edge.source),
-      rects.get(edge.target)
-    );
+    const sourceSlice = membership.sliceByNode.get(edge.source);
+    const sourceStory = membership.storyByNode.get(edge.source);
+    const { sourceSide, targetSide, route } = proxy
+      ? { sourceSide: "right", targetSide: "left", route: "event-read" }
+      : routedSides(
+        edge.kind, sourceNode, targetNode, rects.get(source), rects.get(target),
+        Boolean(sourceSlice && sourceSlice === membership.sliceByNode.get(edge.target)),
+        Boolean(sourceStory && sourceStory === membership.storyByNode.get(edge.target))
+      );
 
     return {
       id: edge.id,
-      source: edge.source,
-      target: edge.target,
+      source,
+      target,
       type: "eventModelEdge",
       sourceHandle: `${sourceSide}-source`,
       targetHandle: `${targetSide}-target`,
       data: {
         kind: edge.kind,
+        sourceNodeId: edge.source,
+        targetNodeId: edge.target,
+        proxy,
         route,
         active,
         diffStatus,
