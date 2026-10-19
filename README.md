@@ -97,7 +97,7 @@ The distributable skills live under `skills/`. Ask your running agent to use
 `emviz`, or invoke `/emviz` if your agent supports slash commands. Install all
 companion skills so modeling and validation references are available. Installing
 skills does not install the CLI. The launcher uses a project-local CLI or
-`npx emviz@0.7.0` when package execution is permitted.
+`npx emviz@0.8.0` when package execution is permitted.
 
 ## Usage
 
