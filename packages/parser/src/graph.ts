@@ -13,7 +13,7 @@ function graphIds(project: Model) {
     keys.add(JSON.stringify(identity));
     identities.set(base, keys);
   };
-  for (const story of project.stories) register(storyId(story.path), [story.path]);
+  for (const story of project.stories) register(storyId(story.id ?? story.path), [story.id ?? story.path]);
   for (const event of project.events) register(eventId(event.name), [event.name]);
   for (const slice of project.slices) {
     register(sliceId(slice.path), [slice.path]);
@@ -53,11 +53,11 @@ export function buildGraph(project: Model): Pick<EventModelProject, "nodes" | "e
   };
 
   for (const story of project.stories) {
-    const currentId = id(storyId(story.path), [story.path]);
+    const currentId = id(storyId(story.id ?? story.path), [story.id ?? story.path]);
     for (const slicePath of new Set(story.slices)) {
       storyIdsBySlicePath.set(slicePath, [...(storyIdsBySlicePath.get(slicePath) ?? []), currentId]);
     }
-    nodes.push({ id: currentId, type: "story", label: story.name, sourcePath: story.path, description: story.description });
+    nodes.push({ id: currentId, type: "story", label: story.name, storyId: story.id, sourceName: story.localId, sourcePath: story.path, description: story.description });
   }
   for (const event of project.events) {
     nodes.push({ id: eventNodeId(event.name), type: "event", label: event.name, sourceName: event.name, sourcePath: event.sourcePath, fields: event.fields, description: event.description });
@@ -65,7 +65,7 @@ export function buildGraph(project: Model): Pick<EventModelProject, "nodes" | "e
   for (const slice of project.slices) {
     const currentSliceId = id(sliceId(slice.path), [slice.path]);
     const currentScreenId = id(screenId(slice.path), [slice.path]);
-    const shared = { storyName: slice.storyName, sliceTitle: slice.title, sourcePath: slice.path, raw: slice.raw };
+    const shared = { storyName: slice.storyName, storyId: slice.storyId, sliceTitle: slice.title, sourcePath: slice.path, raw: slice.raw };
     nodes.push({ ...shared, id: currentSliceId, type: "slice", label: slice.title });
     for (const story of storyIdsBySlicePath.get(slice.path) ?? []) {
       connect("story-slice", story, currentSliceId);

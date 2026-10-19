@@ -18,6 +18,18 @@ export function materializeGitRef(ref: string, cwd = process.cwd()): string {
       cwd, encoding: "utf8", maxBuffer: 20 * 1024 * 1024
     });
     const config = parseConfig(configText);
+    for (const directory of [config.paths.featuresDir, config.paths.storiesDir]) {
+      const normalized = path.posix.normalize(directory);
+      if (path.isAbsolute(normalized) || normalized === ".." || normalized.startsWith("../")) {
+        throw new Error("Model directories must stay inside the project directory.");
+      }
+      const tracked = execFileSync("git", ["ls-tree", "-r", "-z", "--name-only", ref, "--", normalized], {
+        cwd, encoding: "utf8"
+      }).split("\0").filter(Boolean);
+      for (const file of tracked) {
+        if ((file.endsWith(".yaml") || file.endsWith(config.paths.sliceExtension)) && !files.includes(file)) files.push(file);
+      }
+    }
     const actorsFile = path.posix.normalize(config.paths.actorsFile ?? path.posix.join(config.paths.eventModelDir, "actors.yaml"));
     if (path.isAbsolute(actorsFile) || actorsFile === ".." || actorsFile.startsWith("../")) {
       throw new Error("Actor registry must stay inside the project directory.");

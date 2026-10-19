@@ -22,7 +22,19 @@ export type EventRegistryEntry = {
   sourcePath: string;
 };
 
+export type ModelIssue = { check: string; message: string; path: string };
+
+export type TimelineModel = {
+  id: string;
+  name: string;
+  path: string;
+  steps: { id: string; storyId: string; after: string[] }[];
+};
+
 export type StoryModel = {
+  id?: string;
+  localId?: string;
+  featureName?: string;
   name: string;
   description: string;
   path: string;
@@ -70,6 +82,7 @@ export type SliceModel = {
   title: string;
   path: string;
   storyName?: string;
+  storyId?: string;
   screen: ScreenModel;
   commands: CommandModel[];
   queries: QueryModel[];
@@ -92,6 +105,7 @@ export type GraphNode = {
   type: GraphNodeType;
   label: string;
   storyName?: string;
+  storyId?: string;
   sliceTitle?: string;
   sourcePath?: string;
   sourceName?: string;
@@ -129,6 +143,8 @@ export type EventModelProject = {
   actors?: ActorDefinition[];
   actorIssues?: ActorIssue[];
   stories: StoryModel[];
+  timelines?: TimelineModel[];
+  modelIssues?: ModelIssue[];
   slices: SliceModel[];
   nodes: GraphNode[];
   edges: GraphEdge[];

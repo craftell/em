@@ -160,6 +160,7 @@ export function readSnapshot(target: string): Snapshot {
   };
   walk(config.paths.storiesDir, false, ".yaml");
   walk(config.paths.featuresDir, true, config.paths.sliceExtension);
+  walk(config.paths.featuresDir, true, ".feature.yaml");
   const preliminary = parseFiles(root, files, config);
   for (const source of preliminary.stories.flatMap((story) => story.slices)) {
     const key = sourceKey(root, source);
@@ -215,7 +216,7 @@ function gitBaseline(snapshot: Snapshot): { project: EventModelProject; label: s
       const isStory = (path.posix.dirname(key) === "." ? "" : path.posix.dirname(key)) === config.paths.storiesDir && !path.posix.basename(key).startsWith(".") && key.endsWith(".yaml");
       const relative = config.paths.featuresDir ? key.slice(config.paths.featuresDir.length + 1) : key;
       const ignored = relative.split("/").some((part) => part.startsWith(".")) || ["node_modules/", "dist/", "build/"].some((directory) => key.startsWith(directory));
-      const isSlice = !ignored && (config.paths.featuresDir === "" || key.startsWith(config.paths.featuresDir + "/")) && key.endsWith(config.paths.sliceExtension);
+      const isSlice = !ignored && (config.paths.featuresDir === "" || key.startsWith(config.paths.featuresDir + "/")) && (key.endsWith(config.paths.sliceExtension) || key.endsWith(".feature.yaml"));
       if (isStory || isSlice) read(key);
     }
     const preliminary = parseFiles(root, files, config);
@@ -258,7 +259,7 @@ function parseBatch(body: Record<string, unknown>): BatchInput {
 }
 
 function nodeIdentity(node: EventModelProject["nodes"][number]): string {
-  return JSON.stringify([node.type, node.sourcePath, node.sourceName, node.label, node.sliceTitle]);
+  return JSON.stringify([node.type, node.sourcePath, node.sourceName, node.label, node.sliceTitle, node.type === "story" ? node.storyId : undefined]);
 }
 
 function uniqueNodeIds(project: EventModelProject): Map<string, string | undefined> {

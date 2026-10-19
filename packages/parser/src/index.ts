@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import fg from "fast-glob";
 import YAML from "yaml";
+import { documentIssues, parseFeatureFiles } from "./features.js";
 import { loadActors, parseActorReferences } from "./actors.js";
 export { actorColor } from "./actors.js";
 import { buildGraph } from "./graph.js";
@@ -152,12 +153,13 @@ function parseScreen(raw: RawSlice["screen"]): ScreenModel {
   };
 }
 
-function parseSliceText(slicePath: string, content: string, storyBySlice: Map<string, string>): SliceModel {
+function parseSliceText(slicePath: string, content: string, storyBySlice: Map<string, StoryModel>): SliceModel {
   const raw = YAML.parse(content) as RawSlice | null;
   return {
     title: typeof raw?.slice === "string" ? raw.slice : path.basename(slicePath),
     path: slicePath,
-    storyName: storyBySlice.get(slicePath),
+    storyName: storyBySlice.get(slicePath)?.name,
+    storyId: storyBySlice.get(slicePath)?.id,
     screen: parseScreen(raw?.screen),
     commands: parseCommands(raw?.commands),
     queries: parseQueries(raw?.queries),
@@ -167,10 +169,10 @@ function parseSliceText(slicePath: string, content: string, storyBySlice: Map<st
 }
 
 function parseSlices(projectRoot: string, stories: StoryModel[], sliceGlob: string): SliceModel[] {
-  const storyBySlice = new Map<string, string>();
+  const storyBySlice = new Map<string, StoryModel>();
   for (const story of stories) {
     for (const slicePath of story.slices) {
-      storyBySlice.set(slicePath, story.name);
+      storyBySlice.set(slicePath, story);
     }
   }
 
@@ -191,13 +193,27 @@ export function loadEventModelProject(startDir: string): EventModelProject {
   const root = findProjectRoot(startDir);
   const config = readConfig(root);
   const events = parseEvents(root, config.paths.eventsFile);
-  const stories = parseStories(root, config.paths.storiesDir);
+  const featureFiles = fg.sync(path.posix.join(config.paths.featuresDir, "**/*.feature.yaml"), {
+    cwd: root, onlyFiles: true, ignore: ["node_modules/**", ".git/**", "dist/**", "build/**"]
+  }).sort().map((filePath) => ({ path: filePath, content: fs.readFileSync(resolveProjectPath(root, filePath), "utf8") }));
+  const featureData = parseFeatureFiles(featureFiles);
+  const stories = [...parseStories(root, config.paths.storiesDir), ...featureData.stories];
   const slices = parseSlices(root, stories, path.posix.join(config.paths.featuresDir, `**/*${config.paths.sliceExtension}`));
   const actorsPath = config.paths.actorsFile ?? path.posix.join(config.paths.eventModelDir, "actors.yaml");
   const absoluteActorsPath = resolveProjectPath(root, actorsPath);
   const actorsContent = fs.existsSync(absoluteActorsPath) ? fs.readFileSync(absoluteActorsPath, "utf8") : undefined;
   const actorData = loadActors(actorsContent, actorsPath, slices);
-  const projectWithoutGraph = { root, config, events, stories, slices, ...actorData };
+  const sourceDocuments = [
+    { path: config.paths.eventsFile, kind: "events" },
+    ...stories.filter((story) => !story.id).map((story) => ({ path: story.path, kind: "story" })),
+    ...slices.map((slice) => ({ path: slice.path, kind: "slice" })),
+    ...(actorsContent === undefined ? [] : [{ path: actorsPath, kind: "actors" }])
+  ];
+  const modelIssues = [
+    ...featureData.modelIssues,
+    ...sourceDocuments.flatMap((source) => documentIssues(fs.readFileSync(resolveProjectPath(root, source.path), "utf8"), source.path, source.kind))
+  ];
+  const projectWithoutGraph = { root, config, events, stories, slices, timelines: featureData.timelines, modelIssues, ...actorData };
   const graph = buildGraph(projectWithoutGraph);
 
   return {
