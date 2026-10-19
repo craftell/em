@@ -1839,6 +1839,6 @@ pre {
 .node-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .screen-link { display: inline-flex; align-items: center; justify-content: center; gap: 6px; color: #1d4ed8; text-decoration: none; }
 .screen-link:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.screen-link-compact { margin: -4px -4px 0 0; padding: 3px; width: 24px; height: 24px; border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; flex-shrink: 0; }
+.screen-link-compact { margin: 0 -4px 0 0; padding: 3px; width: 24px; height: 24px; border: 1px solid #cbd5e1; border-radius: 5px; background: #fff; flex-shrink: 0; }
 .screen-link-compact:hover { background: #eff6ff; }
 .screen-link-details { margin-block: 12px; overflow-wrap: anywhere; font-size: 12px; }

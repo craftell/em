@@ -119,6 +119,10 @@ test("old version keeps its own link instead of linking to new version", async (
   };
   const fixture = await open("old-version", { diff });
   try {
+    const linkBox = await screen(fixture.page).getByRole("link").boundingBox();
+    const badgeBox = await screen(fixture.page).locator(".diff-badge").boundingBox();
+    assert.ok(linkBox && badgeBox);
+    assert.ok(badgeBox.y + badgeBox.height <= linkBox.y, "diff badge must not overlap the link target");
     await screen(fixture.page).locator(".node-label").click();
     await fixture.page.getByRole("button", { name: "Old version", exact: true }).click();
     assert.equal(await fixture.page.locator("#inspector-details").getByRole("link", { name: /Open reference/ }).getAttribute("href"), oldReference);
