@@ -29,6 +29,7 @@ Read these references as needed:
    - `events.yaml`
    - the optional configured actor registry, when present
    - `stories/*.yaml`
+   - `**/*.feature.yaml` under the configured features directory
    - story-referenced slices
    - all `**/*<slice_extension>` files outside ignored directories
 6. Build the graph:
@@ -43,12 +44,18 @@ Run the full check set from `references/checks.md`:
 
 - config, event registry, and actor registry checks
 - story checks
+- feature schema version, stable IDs, local references, repeated story or slice
+  use within a timeline, and layout cycle checks
 - slice schema checks
 - within-slice references
 - cross-slice graph checks
 - domain-event validity heuristics
 - slice modeling warnings
 - graph info summaries
+
+Treat timeline `after` as a layout constraint. Do not add its links to the domain
+graph or report a missing business dependency from its absence. Unsupported
+versions and malformed header pairs are F1 findings, not silent migrations.
 
 Be conservative on domain-event warnings. Dispatch boundary events are valid when
 they have a consumer slice.

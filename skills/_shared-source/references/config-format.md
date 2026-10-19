@@ -20,7 +20,7 @@ language: ja                    # ISO 639-1 code or free-text name (e.g. "ja", "
 # Optional. Output paths. All paths are relative to the project root.
 paths:
   event_model_dir: event-model        # holds events.yaml and stories/
-  features_dir: src/features          # parent of <story-slug>/<slice-slug>/
+  features_dir: src/features          # holds slice files and **/*.feature.yaml
   slice_extension: .slice.yaml        # extension for slice files
   events_file: event-model/events.yaml
   actors_file: event-model/actors.yaml # optional actor registry
@@ -76,7 +76,12 @@ When generating files, always compose paths through this config:
   `<features_dir>/<story-slug>/<slice-slug>/<slice-slug><slice_extension>`
 - Events registry: `<events_file>`
 - Optional actor registry: `<actors_file>`
-- Story file: `<stories_dir>/<story-slug>.yaml`
+- Legacy story file: `<stories_dir>/<story-slug>.yaml`
+- Feature file: `<features_dir>/<feature-slug>/<feature-slug>.feature.yaml`
+
+A feature file contains local story definitions and timelines. Slice references
+inside it stay project-root-relative. There is no separate timelines directory.
+Changing `features_dir` changes feature-file discovery as well as slice discovery.
 
 `<story-slug>` and `<slice-slug>` are kebab-case ASCII derived from the human
 slice/story names. Use English ASCII slugs even when the configured language is

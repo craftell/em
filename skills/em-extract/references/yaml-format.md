@@ -2,8 +2,8 @@
 
 The canonical format for every file the `em-model` skill produces. The
 **slice file** is the canonical artifact parsed by Event Modeling tooling, so
-its schema must stay exact. `events.yaml` and story files are documentation and
-have more flexibility.
+its schema must stay exact. event registry, story indices, and feature timelines describe how those artifacts
+fit together. Feature documents use the versioned structure below.
 
 ## Table of contents
 
@@ -18,6 +18,8 @@ have more flexibility.
 9. [GWT reference](#gwt-reference)
 10. [Validation rules tooling enforces](#validation-rules-tooling-enforces)
 11. [Actor registry](#actor-registry)
+12. [Feature timelines](#feature-timelines)
+13. [Document headers](#document-headers)
 
 ---
 
@@ -30,6 +32,8 @@ One file per slice. Path resolved through the project config:
 
 | Key | Required | Type | Notes |
 |---|---|---|---|
+| `kind` | no | string | If supplied, use `slice` and supply `schema_version` too. |
+| `schema_version` | no | number | Supported value: `1`. See document headers below. |
 | `slice` | yes | string | Human-readable slice title. Free text in the configured language. |
 | `screen` | yes | object | Exactly one. See [Screen block](#screen-block). |
 | `commands` | no | array | Command objects. |
@@ -463,3 +467,84 @@ User screens reference these IDs with `screen.actors: [Customer, Support]`. Acto
 When the registry exists, every referenced actor must be defined there. Register an actor before adding a new reference. An empty registry does not permit undeclared IDs. Invalid definitions and references produce emviz A1 findings; unresolved IDs remain visible with fallback colors.
 
 When the file is absent, legacy actor strings remain valid. emviz derives actor display entries from user screens. Adding a registry is optional and does not require renaming existing IDs.
+
+## Feature timelines
+
+Store a feature's stories and timeline presentations together in
+`<features_dir>/<feature-slug>/<feature-slug>.feature.yaml`.
+Keep slice definitions in their own files.
+
+```yaml
+kind: feature
+schema_version: 1
+id: customer-onboarding
+name: Customer onboarding
+stories:
+  - id: registration
+    name: Register customer
+    slices:
+      - event-model/features/customer-onboarding/register-customer/register-customer.slice.yaml
+  - id: welcome
+    name: Send welcome email
+    slices:
+      - event-model/features/customer-onboarding/send-welcome-email/send-welcome-email.slice.yaml
+  - id: home
+    name: View customer home
+    slices:
+      - event-model/features/customer-onboarding/view-customer-home/view-customer-home.slice.yaml
+timelines:
+  - id: overview
+    name: Onboarding overview
+    steps:
+      - id: register
+        story: registration
+      - id: email
+        story: welcome
+        after: [register]
+      - id: dashboard
+        story: home
+        after: [register]
+  - id: customer-view
+    name: Customer view
+    steps:
+      - id: register
+        story: registration
+      - id: dashboard
+        story: home
+        after: [register]
+```
+
+- Root `kind: feature`, numeric `schema_version: 1`, project-unique `id`,
+  display `name`, `stories`, and `timelines` are required.
+- Story entries require feature-local `id`, `name`, and `slices`.
+  Their optional `description` explains the journey.
+- Slice paths are project-root-relative, not relative to this feature file.
+- Timeline entries require feature-local `id`, `name`, and nonempty `steps`.
+- Step entries require timeline-local `id` and a `story` ID from this feature.
+  Optional `after` lists predecessor step IDs in the same timeline.
+- `after` controls layout only. It adds no event, query, or other domain edge.
+  Two steps after one predecessor have no relative order; this does not imply
+  simultaneous execution. Multiple predecessors express a visual join only.
+- Stories can be reused across timelines. A timeline cannot repeat a story or
+  contain the same slice through several stories.
+- Feature and local IDs define story and timeline identity. Preserve them across
+  display-name changes and file moves. Moving a story to another feature ID
+  changes its identity. Slice identity remains source-path-based.
+- Unsupported versions, duplicate IDs, unknown references, repeated slices, and
+  layout cycles produce F1 findings. Invalid timelines are excluded. Structural
+  feature or story errors prevent that feature's timelines from loading.
+
+Existing standalone story files remain supported. Avoid maintaining the same
+journey in both a legacy story file and a feature story unless that duplication
+is intentional. There is no automatic YAML migration.
+
+## Document headers
+
+Feature files require `kind: feature` and numeric `schema_version: 1`.
+Existing story, slice, events, and actors documents may omit both headers for
+compatibility. When either header is present, both are required. The kind must
+match the file: `story`, `slice`, `events`, or `actors`.
+
+The version is the YAML schema version, not the installed emviz version.
+Unsupported versions, wrong kinds, and incomplete pairs produce F1 findings.
+Do not rename a schema version to make a newer format appear compatible.

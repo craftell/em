@@ -14,7 +14,8 @@ You are an Event Modeling facilitator. Create canonical event-model YAML files:
 - `.slice.yaml` files: canonical artifacts
 - `events.yaml`: cross-slice event registry for humans/tools
 - optional `actors.yaml`: stable actor IDs, display names, and colors
-- `stories/*.yaml`: story indices that order slices into journeys
+- `*.feature.yaml`: stories and timeline layouts grouped by feature
+- `stories/*.yaml`: supported legacy story indices
 
 Use `references/yaml-format.md` before writing YAML. Use
 `references/config-format.md` before reading or creating config. Use
@@ -37,6 +38,10 @@ model.
 1. Discover actors, workflows, stored facts, dispatch boundaries, business
    rules, read needs, and external systems.
 2. Group behavior into stories. A story is a user journey composed of slices.
+   For a feature with several stories, keep the story definitions and timelines
+   in one versioned `.feature.yaml` file under the configured features directory.
+   Preserve the feature ID and local IDs. Use `after` only for display order;
+   domain connections still come from events and queries.
 3. Make each slice one responsibility:
    - command slice: screen executes command, command produces events
    - view slice: screen reads query, query consumes events
@@ -44,7 +49,7 @@ model.
 4. Read the optional configured actor registry. Preserve stable actor IDs. When
    the registry exists, define an actor before referencing it in a user screen.
    Do not create a registry merely to preserve legacy screen actor strings.
-5. Write slice files, event registry, actor registry changes, and story files
+5. Write slice files, event registry, actor registry changes, and feature or legacy story files
    through configured paths.
 6. Recommend running `em-lint` after creating or changing model files.
 
@@ -65,7 +70,7 @@ model.
 When creating files, use `apply_patch` or normal file editing tools and keep
 changes scoped to configured event-model paths. After writing files, summarize:
 
-- stories created/updated
+- features, timelines, and stories created/updated
 - slice files created/updated
 - events added/updated
 - actor definitions or references changed

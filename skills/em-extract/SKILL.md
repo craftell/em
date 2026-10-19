@@ -30,7 +30,7 @@ can bypass broad code exploration by summarizing codebase entities and links.
 
 If an event model already exists, treat it as the baseline instead of replacing
 it. Existing YAML may contain user-confirmed domain decisions that are more
-important than a fresh inference pass. Read configured slice files, story files,
+important than a fresh inference pass. Read configured slice files, feature files, story files,
 `events.yaml`, the optional configured actor registry, and
 `.event-modeling/extraction-state.json` when present.
 
@@ -54,7 +54,7 @@ and edge fields are present.
    - slice files
    - `events.yaml`
    - the optional configured actor registry and existing screen actor IDs
-   - story files
+   - story files and `**/*.feature.yaml` under the configured features directory
    - `.event-modeling/extraction-state.json` if present
 3. Load `knowledge-graph.json` if available:
    - `.understand-anything/knowledge-graph.json`
@@ -82,7 +82,9 @@ and edge fields are present.
    - `stale`: modeled behavior was previously evidenced but is no longer found
    - `conflict`: current evidence disagrees with existing YAML in a way that may
      reflect a deliberate human modeling decision
-9. Preserve existing model identifiers, file paths, story ordering, and user
+9. Preserve feature IDs, local story and timeline IDs, and existing layout constraints.
+   Do not infer domain dependencies from timeline `after`: it only controls display.
+   Preserve existing model identifiers, file paths, story ordering, and user
    notes unless the evidence clearly justifies a change. Preserve actor IDs and
    user-chosen names and colors. Infer roles only for user screens, never processors.
    When a registry exists, propose its new entries with new screen references. Prefer a merge proposal
@@ -96,7 +98,7 @@ and edge fields are present.
    files to be created.
 
 When writing files during baseline reconciliation or incremental extraction,
-update only the affected slice/story/event files and then create or refresh
+update only the affected slice, feature, story, and event files and then create or refresh
 `.event-modeling/extraction-state.json` using `references/extraction-state.md`.
 Do not delete stale model artifacts without explicit confirmation; report them
 as stale candidates first.

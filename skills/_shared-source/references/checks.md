@@ -11,6 +11,7 @@ Severity legend: **E** = error, **W** = warning, **I** = info.
 
 - [Config & registry](#config--registry) — C1–C4
 - [Actors](#actors) - A1
+- [Feature documents](#feature-documents) - F1
 - [Stories](#stories) — S1–S4
 - [Slice schema](#slice-schema) — L1–L9
 - [Within-slice references](#within-slice-references) — W1–W2
@@ -408,3 +409,25 @@ that read its events.
 Connected components in the slice-dependency graph. More than one island
 may indicate clean bounded contexts — or missing connections, depending
 on the domain.
+
+## Feature documents
+
+### F1 - versioned documents and timeline references are valid (E)
+
+Read `**/*.feature.yaml` under the configured features directory.
+Require `kind: feature`, numeric `schema_version: 1`, a project-unique root
+`id`, a display `name`, and story and timeline arrays.
+Validate local story IDs, local timeline IDs, step IDs, story references, and
+predecessor references. Reject repeated stories or repeated slice paths within
+one timeline. Reject cycles in timeline `after` constraints.
+
+For existing slice, story, events, and actors documents, accept no headers or
+both matching `kind` and `schema_version: 1`. Report incomplete pairs,
+unsupported versions, and mismatched kinds.
+
+Include the source file and offending ID or version in the finding.
+An invalid timeline is omitted from selectable timelines. Structural feature or
+story errors prevent the feature's timelines from loading. Inspect diagnostics
+even when remaining canonical slices still render.
+
+Do not treat `after` as a domain dependency. It affects layout only.
