@@ -129,6 +129,8 @@ A detached viewer or a background shell loop alone cannot process feedback.
    owning `*.feature.yaml`. Embedded stories share that file. Match the feature
    and local story IDs, not just the display name. Preserve feature, story,
    timeline, and step IDs unless the requested change requires new identities.
+   If a layout request omits the target timeline or predecessor, ask for the
+   missing choice. Node feedback alone does not identify a selected timeline.
    Change `after` only for layout order. Do not invent domain connections or
    clone canonical slices to make a timeline look right.
 6. For actor edits, read the optional configured actor registry. Preserve stable

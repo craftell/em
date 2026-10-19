@@ -45,7 +45,7 @@
     },
     {
       "id": 8,
-      "prompt": "A feedback request selects an embedded story from billing.feature.yaml in a timeline. Rename its display name and place it after another step. The captured revision still matches. Another story has the same display name in another feature.",
+      "prompt": "A feedback request selects embedded story signup in feature billing from billing.feature.yaml. Rename it to Start subscription. In timeline overview, place its step signup-step after existing step eligibility-step. The captured revision still matches. Another feature has a story with the same display name.",
       "expected_output": "Re-reads the captured owning feature file and resolves the selected story by feature/local IDs rather than display name. Preserves canonical source and feature/story/timeline/step IDs, edits only the requested name and after relation, and adds no domain edge or duplicate slice. Runs available model checks, replies once with actual results, and resumes polling.",
       "files": []
     }
