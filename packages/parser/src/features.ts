@@ -13,7 +13,12 @@ function identifier(value: unknown): value is string {
 }
 
 export function documentIssues(content: string, path: string, kind: string): ModelIssue[] {
-  const raw: unknown = YAML.parse(content);
+  let raw: unknown;
+  try {
+    raw = YAML.parse(content);
+  } catch (error) {
+    return [{ check: "F1", path, message: `Invalid YAML: ${error instanceof Error ? error.message : String(error)}` }];
+  }
   if (!record(raw)) return [];
   const issues: ModelIssue[] = [];
   if (raw.kind !== undefined && raw.kind !== kind) {

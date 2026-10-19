@@ -158,6 +158,24 @@ timelines:
     expect(projects[0].modelIssues!.some((issue) => issue.path === input[3].path && issue.message.includes("Unsupported"))).toBe(true);
   });
 
+  it("keeps authored identities stable when the feature file moves", () => {
+    const input = files();
+    const before = loadEventModelProjectFromFiles(input);
+    input.find((file) => file.path === featurePath)!.path = "event-model/features/moved.feature.yaml";
+    const after = loadEventModelProjectFromFiles(input);
+    expect(after.stories.map((story) => story.id)).toEqual(before.stories.map((story) => story.id));
+    expect(after.timelines!.map((timeline) => timeline.id)).toEqual(before.timelines!.map((timeline) => timeline.id));
+    expect(after.stories[0].path).toBe("event-model/features/moved.feature.yaml");
+  });
+
+  it("rejects duplicate feature identities instead of merging their stories", () => {
+    const input = files();
+    input.push({ path: "event-model/features/duplicate.feature.yaml", content: feature });
+    const project = loadEventModelProjectFromFiles(input);
+    expect(project.modelIssues!.some((issue) => issue.message.includes("Duplicate feature id"))).toBe(true);
+    expect(project.stories).toHaveLength(3);
+  });
+
   it("keeps stable story identifiers when a display name changes", () => {
     const before = loadEventModelProjectFromFiles(files());
     const after = loadEventModelProjectFromFiles(files(feature.replace("name: Registration", "name: Sign up")));
