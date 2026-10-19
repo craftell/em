@@ -13,7 +13,7 @@ fit together. Feature documents use the versioned structure below.
 4. [Automation slice example](#automation-slice-example)
 5. [Translation slice example](#translation-slice-example)
 6. [`event-model/events.yaml` (documentation)](#event-modeleventsyaml-documentation)
-7. [Story files (documentation)](#story-files-documentation)
+7. [Standalone story files (legacy-compatible)](#standalone-story-files-legacy-compatible)
 8. [Field types](#field-types)
 9. [GWT reference](#gwt-reference)
 10. [Validation rules tooling enforces](#validation-rules-tooling-enforces)
@@ -328,10 +328,13 @@ the union of every slice's producers and consumers.
 
 ---
 
-## Story files (documentation)
+## Standalone story files (legacy-compatible)
 
-One file per user story. Path: `<stories_dir>/<story-slug>.yaml`. Lists slice
-file paths in narrative order, so a reader can follow the user journey.
+Existing standalone stories use one file per user story at
+`<stories_dir>/<story-slug>.yaml`. Each file lists slice paths in narrative order.
+For stories owned by a feature, use the embedded `stories` array in
+[Feature timelines](#feature-timelines) instead. Do not create a duplicate
+standalone file for an embedded story unless that duplication is intentional.
 
 ```yaml
 name: User Registration

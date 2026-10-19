@@ -12,6 +12,18 @@
       "prompt": "The codebase and .understand-anything/knowledge-graph.json changed since the last extraction. Update the existing event model incrementally and show what would be added, updated, stale, or conflicting before writing files.",
       "expected_output": "Reads the existing model and extraction-state baseline, compares current evidence with prior provenance, proposes add/update/stale/conflict changes, preserves existing YAML decisions, and updates extraction-state only after confirmed writes.",
       "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Update an existing billing feature incrementally from changed code. Its feature ID is billing, story ID signup, and timeline ID overview. A user renamed the story and manually changed after. The version-1 extraction-state has old slice provenance only. Show the proposed changes before writing.",
+      "expected_output": "Reads existing YAML and version-1 state, keeps old keys, and adds collision-safe feature/story/timeline provenance keyed by stable IDs with the owning feature YAML as artifactPath. Includes that file in model hashes after confirmed writes. Preserves IDs, manual story membership and after constraints. Labels inferred grouping/layout and reports conflicts rather than replacing layout with code call order.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Draft a new feature from this codebase alongside existing headerless standalone stories. Several functions run sequentially, but there is no evidence of a domain event between them. Do not write files yet.",
+      "expected_output": "Proposes feature stories and timelines with confidence labels and stable IDs, keeps existing legacy documents, and distinguishes layout after from domain causality. Does not invent events or duplicate existing stories. Does not write model or extraction state before authorization.",
+      "files": []
     }
   ]
 }

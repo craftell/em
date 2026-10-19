@@ -116,12 +116,31 @@ Use stable, human-readable keys that correspond to model concepts:
 - Slice names for slice provenance, such as `StartSubscription`
 - Event names for registry-only event provenance, such as `SubscriptionStarted`
 - Query or command names only when they need independent provenance
+- Feature IDs for feature provenance
+- Feature ID plus local story or timeline ID for embedded entries, never display names
+
+Keep existing version-1 keys when updating an existing state file. For new feature
+entries, use collision-safe keys such as `["feature","billing"]`,
+`["story","billing","start-subscription"]`, or `["timeline","billing","overview"]`
+encoded as JSON strings. The type prefix distinguishes a story from a timeline
+with the same local ID. These are provenance keys, not generated graph IDs.
+
+For a feature, embedded story, or timeline, `artifactPath` is the owning
+`*.feature.yaml` file. Include that file in `model.fileHashes`. Preserve the key
+when its display name or file path changes, and update the path and hash.
+Moving a story to another feature changes its identity. Do not silently merge
+its provenance with the old entry.
+
+Preserve manually edited story membership and timeline `after` layout constraints.
+Source-code call order alone does not justify changing presentation order.
+Record uncertain grouping or layout as `inferred` or `question` and ask before
+replacing the existing choice. Timeline order is not evidence of a domain edge.
 
 Each provenance entry should include:
 
 | Field | Type | Notes |
 |---|---|---|
-| `artifactType` | string | `slice`, `event`, `story`, `command`, or `query`. |
+| `artifactType` | string | `slice`, `event`, `story`, `command`, `query`, `feature`, or `timeline`. |
 | `artifactPath` | string | Repository-relative path to the owning YAML file. |
 | `evidence` | array | Source file or graph-node references. |
 | `lastSeenAt` | string | ISO timestamp from the most recent extraction where evidence was found. |

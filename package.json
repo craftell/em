@@ -5,7 +5,7 @@
   "scripts": {
     "build": "pnpm -r --filter '!emviz' build && pnpm --filter emviz build",
     "check": "pnpm build && pnpm -r check",
-    "test": "pnpm -r test",
+    "test": "node --test scripts/*.test.mjs && pnpm -r test",
     "dev": "pnpm --filter @emviz/app dev",
     "emviz": "pnpm --filter emviz start",
     "release:dry": "pnpm install --frozen-lockfile && pnpm check && pnpm test && pnpm --filter emviz pack --dry-run",
