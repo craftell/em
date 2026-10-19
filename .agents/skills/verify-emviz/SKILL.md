@@ -144,10 +144,20 @@ agent-evaluation result only after an actual evaluation run.
 
 The [screen links journey](features/screen-links.md) and
 `pnpm --filter @emviz/app test:browser:links` cover external design links.
-They are authored but unexecuted. Historical browser passes above do not verify
-this feature. Exercise the node icon and Details reference link separately.
-Verify keyboard access, new-tab destinations, opener isolation, stable canvas
-state, and standalone URL dependencies.
+They passed on 2026-10-19 (see the feature file for the revision and evidence).
+Run the real-server journey with:
+
+```sh
+pnpm build
+EMVIZ_EVIDENCE_DIR=/path/outside/the/checkout \
+  node .agents/skills/verify-emviz/scripts/screen-links-journey.mjs
+```
+
+The script uses its own disposable project, serves, diff server, and Chromium
+profile, and cleans them up. Historical browser passes above do not verify this
+feature. The node icon and Details link are exercised separately, with
+keyboard access, new-tab destinations, opener isolation, stable canvas state,
+old-version diff URLs, and standalone URL dependencies.
 
 The new modeling, lint, extraction, and viewer eval cases are authored
 expectations. Do not report them as agent-evaluation passes without a run.

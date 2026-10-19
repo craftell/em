@@ -1,8 +1,11 @@
 # Open screen design links
 
-DRAFT. This journey and the companion skill eval cases are authored but
-unexecuted. No browser run, screenshot, trace, or agent-evaluation pass is
-claimed here.
+Executed on 2026-10-19 on top of `92bb9bb` plus the parser fix in this PR
+(`https://host?x=a@b` and `https://host#@x` were wrongly rejected). The real-server
+journey script passed all 13 checks, and `pnpm --filter @emviz/app test:browser:links`
+passed 4 of 4 cases. The companion skill eval cases are authored only; no agent
+evaluation has run. Evidence is retained outside the checkout at
+`/home/kfukuyama/fm-homes/personal/data/screen-reference-links/journey-final/2026-10-19T12-25-47-160Z-14bc91ef/`.
 
 Read the [verification skill](../SKILL.md). Use an isolated project and a
 dedicated browser profile. Do not attach to an existing user session.
@@ -58,21 +61,48 @@ shared screenshots and traces.
 
 ## Execution and evidence
 
-The authored browser entry point is:
+Build first (`pnpm build`), then run the real-server journey from the repository
+root:
+
+```sh
+EMVIZ_EVIDENCE_DIR=/path/outside/the/checkout \
+  node .agents/skills/verify-emviz/scripts/screen-links-journey.mjs
+```
+
+The script builds a disposable project under the system temp directory, starts
+`emviz open` and `emviz diff` itself, and removes them and the project on exit.
+It exits 0 only when every check below passes, and prints the run directory.
+`verification.json` lists the passed checks.
+
+| Step above | Script phase |
+| --- | --- |
+| 1-3, 7 | viewer icons and attributes; no iframe |
+| 4 | mouse: new tab, `window.opener === null`, no Referer, selection and viewport unchanged |
+| 5 | keyboard: Tab, focus ring, Enter |
+| 6 | Details link by mouse and keyboard |
+| 8 | 1280 and 680 px widths, expanded Actors, unforced clicks |
+| 9 | diff: old and new URLs for changed, added, and removed screens; badge clear of the link |
+| 10 | export, close the server, open the file; tampered payload renders no link |
+| 11 | destination unavailable: only the new tab fails |
+
+The script reads `L10` findings from the served project snapshot
+(`l10-findings.json`) for a `javascript:` URL, a URL with credentials, a relative
+path, and a URL on a system screen. It also keeps a valid URL whose fragment contains
+`@` (`https://host#section@2`), which an earlier parser wrongly rejected. Other
+rejected forms (backslashes, control characters, arrays, null, and so on) are covered
+by the parser unit tests, not the journey.
+
+The fixture suite is a separate entry point and does not replace the journey:
 
 ```sh
 pnpm --filter @emviz/app test:browser:links
 ```
 
-Run available repository checks and skill validation in an authorized execution
-environment. Record the exact revision, command, exit code, and covered steps.
-A fixture test does not prove every manual step above.
+Retain screenshots of the node icon, sidebar link, keyboard focus, and diff;
+matching ARIA snapshots; Playwright videos; `doctor.json`, `l10-findings.json`,
+`terminal.json`, `verification.json`, and the exported HTML. Redact credentials
+and private URLs before sharing evidence.
 
-Retain screenshots of the node icon, sidebar link, and keyboard focus;
-matching ARIA snapshots; a trace; new-tab destination and opener assertions;
-and selection and viewport assertions. Keep the exported HTML and before/after
-fixture values outside the disposable project. Redact credentials and private
-URLs before sharing evidence.
-
-Keep this draft label until the corresponding browser journey has actually
-run. Record partial passes and unexecuted paths separately.
+Not covered: a real Figma page (the destination is a local server and an
+unreachable port), history navigation (step 3 covers search and canvas only),
+a trace file, and physical-device input.

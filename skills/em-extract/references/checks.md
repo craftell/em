@@ -200,7 +200,7 @@ whitespace-normalized; a duplicate is a hard error.
 
 **Finding**: `<path>:<line>` lists `<name>` twice in `<list>`.
 
-### L10 - screen URLs are valid (E)
+### L10 — screen URLs are valid (E)
 
 Check each supplied `screen.url`. The value must be a nonempty string with
 an absolute HTTP or HTTPS URL, and belong only to `screen.type: user`.

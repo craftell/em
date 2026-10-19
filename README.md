@@ -394,8 +394,8 @@ devices remain untested; the journey lists the exact coverage and evidence.
 
 The [screen links journey](.agents/skills/verify-emviz/features/screen-links.md)
 and `pnpm --filter @emviz/app test:browser:links` cover external design links.
-The journey and skill eval cases are authored but unexecuted; they are not part
-of the historical passing runs above.
+The journey and the four browser cases passed on 2026-10-19. The skill eval
+cases are authored only; no agent evaluation has run.
 
 ## Package Layout
 

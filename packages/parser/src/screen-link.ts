@@ -5,7 +5,7 @@ export function safeScreenUrl(value: unknown): string | undefined {
   try {
     const url = new URL(value);
     if (!["https:", "http:"].includes(url.protocol) || !url.hostname || url.username || url.password) return undefined;
-    if (value.split("/")[2].includes("@")) return undefined;
+    if (value.split(/[/?#]/)[2].includes("@")) return undefined;
     return value;
   } catch {
     return undefined;

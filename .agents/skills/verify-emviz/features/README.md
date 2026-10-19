@@ -39,8 +39,10 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 
 - [Open screen design links](screen-links.md) covers node and sidebar links,
   new tabs, keyboard access, stable canvas state, validation, diff, and standalone
-  URL preservation. This journey and its companion skill eval cases are authored
-  but unexecuted. The entry point is `pnpm --filter @emviz/app test:browser:links`.
+  URL preservation. The real-server journey (`scripts/screen-links-journey.mjs`)
+  and the 4 fixture cases (`pnpm --filter @emviz/app test:browser:links`) passed
+  on 2026-10-19. The companion skill eval cases are authored only and have not
+  been run by an agent.
 
 ## Proof reporting
 

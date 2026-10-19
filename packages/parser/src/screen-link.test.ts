@@ -30,7 +30,10 @@ function parseBoth(screen: Record<string, unknown>) {
 describe("screen links", () => {
   it.each([
     "https://www.figma.com/design/example/Design?node-id=1-2",
-    "http://localhost:3000/checkout"
+    "http://localhost:3000/checkout",
+    "https://example.com/design?owner=a@b.com",
+    "https://example.com?owner=a@b.com",
+    "https://example.com#section@2"
   ])("preserves links through both parsers and graph construction (%s)", (url) => {
     const [browser, disk] = parseBoth({ type: "user", name: "Checkout", url });
     for (const project of [browser, disk]) {
@@ -57,7 +60,7 @@ describe("screen links", () => {
     "javascript:alert(1)", "data:text/html,hello", "file:///tmp/example",
     "/prototype", "//example.com", "https:example.com",
     "https:///example.com", "https://", "https://[invalid",
-    "https://user:pass@example.com", "https://@example.com",
+    "https://user:pass@example.com", "https://@example.com", "https://:@example.com", "https://example.com@evil.com/",
     " https://example.com", "https://example.com/a b",
     "https://exa\tmple.com", "https://example.com/a\n",
     "https://example.com/\u0000", "https://example.com/\u007f",
