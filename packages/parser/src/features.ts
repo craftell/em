@@ -32,6 +32,7 @@ export function parseFeatureFiles(files: SourceFile[]): { stories: StoryModel[];
   const stories: StoryModel[] = [];
   const timelines: TimelineModel[] = [];
   const modelIssues: ModelIssue[] = [];
+  const featureIds = new Set<string>();
   for (const file of files) {
     const issue = (message: string) => modelIssues.push({ check: "F1", path: file.path, message });
     let raw: unknown;
@@ -49,6 +50,16 @@ export function parseFeatureFiles(files: SourceFile[]): { stories: StoryModel[];
       issue('Feature document requires kind "feature" and schema_version 1.');
       continue;
     }
+    if (!identifier(raw.id)) {
+      issue("Feature requires a nonempty string id.");
+      continue;
+    }
+    if (featureIds.has(raw.id)) {
+      issue(`Duplicate feature id "${raw.id}".`);
+      continue;
+    }
+    featureIds.add(raw.id);
+    const featureIssueStart = modelIssues.length;
     if (!identifier(raw.name)) issue("Feature name must be a nonempty string without surrounding whitespace.");
     const featureName = identifier(raw.name) ? raw.name : file.path;
     const localStories = new Map<string, StoryModel>();
@@ -80,7 +91,7 @@ export function parseFeatureFiles(files: SourceFile[]): { stories: StoryModel[];
           }
         }
         const story: StoryModel = {
-          id: JSON.stringify([file.path, entry.id]),
+          id: JSON.stringify([raw.id, entry.id]),
           localId: entry.id,
           featureName,
           name: identifier(entry.name) ? entry.name : entry.id,
@@ -92,6 +103,7 @@ export function parseFeatureFiles(files: SourceFile[]): { stories: StoryModel[];
         stories.push(story);
       }
     }
+    if (modelIssues.length > featureIssueStart) continue;
     if (!Array.isArray(raw.timelines)) {
       issue("Feature timelines must be an array.");
       continue;
@@ -164,7 +176,7 @@ export function parseFeatureFiles(files: SourceFile[]): { stories: StoryModel[];
       }
       if (modelIssues.length === issueStart) {
         timelines.push({
-          id: JSON.stringify([file.path, entry.id]),
+          id: JSON.stringify([raw.id, entry.id]),
           name: entry.name as string,
           path: file.path,
           steps

@@ -1,3 +1,4 @@
+import { nodeStoryKey } from "./timeline";
 import { actorColor } from "@emviz/parser/browser";
 import type { ActorDefinition, EventModelProject, ProjectNode } from "./types";
 
@@ -114,9 +115,9 @@ export function actorVisibility(project: EventModelProject, filter: ActorFilter,
     if (!directEvents.has(id)) relatedNodeIds.add(id);
   }
   const nodeIds = new Set([...directIds, ...directEvents, ...relatedNodeIds]);
-  const stories = new Set(project.nodes.filter((node) => nodeIds.has(node.id) && node.type !== "event").map((node) => node.storyName));
+  const stories = new Set(project.nodes.filter((node) => nodeIds.has(node.id) && node.type !== "event").map(nodeStoryKey));
   for (const node of project.nodes) {
-    if (node.type === "story" && stories.has(node.label)) nodeIds.add(node.id);
+    if (node.type === "story" && stories.has(node.storyId ?? node.label)) nodeIds.add(node.id);
   }
   return { nodeIds, relatedNodeIds };
 }

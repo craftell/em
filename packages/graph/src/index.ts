@@ -316,6 +316,7 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
     const occurrences = new Map<string, number>();
     return new Map(project.nodes.map((node) => {
       if (node.type === "event") return [node.id, nodeKey(node)];
+      if (node.type === "story" && node.storyId) return [node.id, stableJson({ type: "story", storyId: node.storyId })];
       const key = stableJson({ selector: nodeKey(node), sourcePath: node.sourcePath });
       const occurrence = occurrences.get(key) ?? 0;
       occurrences.set(key, occurrence + 1);
