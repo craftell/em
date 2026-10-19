@@ -103,6 +103,7 @@ describe("feature timelines", () => {
     ["duplicate step", feature.replace("id: profile\n        story:", "id: registration\n        story:"), "repeats step"],
     ["repeated story", feature.replace("story: profile", "story: register"), "repeats story"],
     ["malformed after", feature.replace("after: [registration]", "after: registration"), "after must be"],
+    ["root path", feature.replace("event-model/features/profile.slice.yaml", "./"), "project root"],
     ["traversal", feature.replace("event-model/features/profile.slice.yaml", "../profile.slice.yaml"), "parent traversal"]
   ])("reports %s in both loaders", (_name, content, message) => {
     const projects = loadBoth(files(content));

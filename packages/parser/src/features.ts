@@ -91,6 +91,10 @@ export function parseFeatureFiles(files: SourceFile[]): { stories: StoryModel[];
               continue;
             }
             const normalized = slice.split("/").filter((part) => part && part !== ".").join("/");
+            if (!normalized) {
+              issue(`Story "${entry.id}" slice reference must identify a file, not the project root.`);
+              continue;
+            }
             if (slices.includes(normalized)) issue(`Story "${entry.id}" repeats slice "${normalized}".`);
             else slices.push(normalized);
           }

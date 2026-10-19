@@ -328,7 +328,7 @@ export function toFlow(
   for (const story of project.stories) {
     for (const slicePath of story.slices) {
       const slice = project.slices.find((candidate) => candidate.path === slicePath);
-      if (!slice) continue;
+      if (!slice || (slice.storyId ?? slice.storyName) !== storyKey(story)) continue;
       const storyLayout = storyLayouts.get(storyKey(story)) ?? { x: STORY_X, y: STORY_Y, width: MIN_SLICE_WIDTH, height: MIN_SLICE_HEIGHT };
       const sliceX = nextSliceXByStory.get(storyKey(story)) ?? STORY_X;
       sliceOrigins.set(slice.path, { x: sliceX, y: storyLayout.y + STORY_HEADER_HEIGHT });

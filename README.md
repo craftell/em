@@ -10,6 +10,7 @@ It is not a YAML editor. The canonical model stays in your Event Modeling files;
 
 1. **Visualize Event Modeling YAML**
    - Story lanes and slice groups show the narrative flow.
+   - Feature files group stories and timeline layouts, including branches and visual joins.
    - Screens, processors, commands, events, queries, and GWT cases are rendered as graph nodes.
 
 2. **Trace connections**
@@ -208,6 +209,17 @@ Diff views match both old and new actor references. Actor name or color edits ma
 
 To place the registry elsewhere, set `paths.actors_file` in `.event-modeling/config.yaml`. The default follows `paths.event_model_dir`. Keep the file inside the project directory.
 
+## Feature timelines
+
+Keep related stories and their timeline layouts in one `.feature.yaml` file under
+`paths.features_dir`. Each story references separate slice files. A timeline's
+`after` constraints place stories without adding domain dependencies.
+
+The [feature timeline reference](docs/feature-timelines.md) describes the versioned
+schema, stable IDs, parallel placement, validation, and legacy compatibility.
+The [customer onboarding sample](docs/examples/customer-onboarding.feature.yaml)
+shows two stories after registration and reuses stories in another timeline.
+
 ## Diff View
 
 `emviz diff` opens the normal canvas with diff metadata layered onto the graph. Node fills keep their semantic colors. Added nodes have green outlines and badges, changed nodes have amber outlines and badges, and removed nodes are dashed red ghosts. Edge colors show the same change statuses.
@@ -233,6 +245,7 @@ event-model/
   stories/
     *.yaml
   features/
+    **/*.feature.yaml # optional stories and timeline layouts
     **/*.slice.yaml
 ```
 
@@ -315,7 +328,7 @@ pnpm build
 node packages/cli/dist/index.js .
 ```
 
-The [verify-emviz guide](.agents/skills/verify-emviz/SKILL.md) records the executed local real-server feedback journey and the 17 fixture browser cases. The real-server actor journey, two-machine remote-access journey, and the full startup-baseline fallback browser journey remain unexecuted. Those local checks do not start a real LLM.
+The [verify-emviz guide](.agents/skills/verify-emviz/SKILL.md) records the executed local real-server feedback journey and the 17 fixture browser cases. The real-server actor journey, two-machine remote-access journey, and the full startup-baseline fallback browser journey remain unexecuted. Those local checks do not start a real LLM. The new [feature timeline journey](.agents/skills/verify-emviz/features/feature-timelines.md) is a draft and has not been run.
 
 ## Package Layout
 

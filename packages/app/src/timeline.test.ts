@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { toFlow } from "./layout";
-import { projectTimeline, timelineRanks } from "./timeline";
+import { projectTimeline, timelineRanks, timelineForView } from "./timeline";
 import type { EventModelProject } from "./types";
 
 function fixture(): EventModelProject {
@@ -79,5 +79,30 @@ describe("timeline projection and layout", () => {
     const timeline = project.timelines![0];
     expect(timelineRanks({ ...timeline, steps: [...timeline.steps].reverse() }).get("finish")).toBe(2);
     expect(timelineRanks({ ...timeline, steps: [{ id: "x", storyId: "register", after: ["y"] }, { id: "y", storyId: "profile", after: ["x"] }] }).size).toBe(2);
+  });
+});
+
+describe("shared slices in All stories", () => {
+  it("does not reserve width for a slice displayed under another canonical owner", () => {
+    const project = fixture();
+    project.stories.find((story) => story.id === "register")!.slices = ["profile.slice.yaml", "register.slice.yaml"];
+    const flow = toFlow(project);
+    const story = flow.nodes.find((node) => node.id === "story_register")!;
+    const own = flow.nodes.find((node) => node.id === "slice_register")!;
+    expect(own.position.x).toBe(story.position.x + 20);
+    expect(own.position.x + Number(own.style?.width)).toBeLessThanOrEqual(story.position.x + Number(story.style?.width) + 20);
+    const other = flow.nodes.find((node) => node.id === "story_other")!;
+    const gwt = flow.nodes.find((node) => node.id === "case_profile")!;
+    expect(gwt.position.y + 170).toBeLessThanOrEqual(other.position.y + Number(other.style?.height));
+  });
+});
+
+describe("timeline view selection", () => {
+  it("uses All stories for every diff and restores the retained Current preference", () => {
+    const selected = "member";
+    expect(timelineForView(selected, false)).toBe("member");
+    expect(timelineForView(selected, true)).toBeUndefined();
+    expect(timelineForView(selected, false)).toBe("member");
+    expect(timelineForView(undefined, false)).toBeUndefined();
   });
 });

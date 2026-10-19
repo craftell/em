@@ -1,0 +1,37 @@
+kind: feature
+schema_version: 1
+id: customer-onboarding
+name: Customer onboarding
+stories:
+  - id: registration
+    name: Register customer
+    slices:
+      - event-model/features/customer-onboarding/register-customer/register-customer.slice.yaml
+  - id: welcome
+    name: Send welcome email
+    slices:
+      - event-model/features/customer-onboarding/send-welcome-email/send-welcome-email.slice.yaml
+  - id: home
+    name: View customer home
+    slices:
+      - event-model/features/customer-onboarding/view-customer-home/view-customer-home.slice.yaml
+timelines:
+  - id: overview
+    name: Onboarding overview
+    steps:
+      - id: register
+        story: registration
+      - id: email
+        story: welcome
+        after: [register]
+      - id: dashboard
+        story: home
+        after: [register]
+  - id: customer-view
+    name: Customer view
+    steps:
+      - id: register
+        story: registration
+      - id: dashboard
+        story: home
+        after: [register]

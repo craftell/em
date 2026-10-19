@@ -56,3 +56,8 @@ export function timelineRanks(timeline: TimelineModel): Map<string, number> {
   }
   return new Map(timeline.steps.map((step) => [step.storyId, ranks.get(step.id) ?? 0]));
 }
+
+/** Diff snapshots retain deleted graph elements outside current timeline membership. */
+export function timelineForView(timelineId: string | undefined, isDiff: boolean): string | undefined {
+  return isDiff ? undefined : timelineId;
+}

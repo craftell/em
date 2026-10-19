@@ -18,6 +18,7 @@ import "./styles.css";
 import { apiFetch } from "./api";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
+import { timelineForView } from "./timeline";
 import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
 import { AgentPanel, useFeedbackSession, type SessionController } from "./feedback";
 import { emptyFeedbackWorkspace, reconcileFeedbackQueue, restoreFeedbackWorkspace, serializeFeedbackWorkspace, type FeedbackQueue, type FeedbackWorkspace } from "./feedbackQueue";
@@ -363,6 +364,7 @@ function DiffPanel({
   return (
     <aside className="panel diff-panel">
       <h2>Diff</h2>
+      <p>All stories are shown in diff views so removed items remain accessible.</p>
       {diff.timelinesChanged ? <p role="status">Timeline layout changed. Ordering does not add event dependencies.</p> : null}
       <div className="diff-range">
         <code>{diff.base.label}</code>
@@ -1042,7 +1044,7 @@ function FlowWorkspace() {
   }, [fieldFlows, hoveredEdgeId, project, selectedFieldName, selectedId]);
   const flow = useMemo(
     () => project ? toFlow(project, selectedId, {
-      timelineId,
+      timelineId: timelineForView(timelineId, Boolean(diff)),
       focusedEdgeIds,
       edgeFieldFlows: fieldFlows,
       selectedFieldName,
@@ -1059,11 +1061,11 @@ function FlowWorkspace() {
     if (timelineId && project && !project.timelines?.some((item) => item.id === timelineId)) setTimelineId(undefined);
   }, [project, timelineId]);
   useEffect(() => {
-    if (!timelineId) return;
+    if (!timelineId || diff) return;
     const present = new Set(flow.nodes.map((node) => node.id));
     if (selectedId && !present.has(selectedId)) setSelection(undefined);
     if (gwtListId && !present.has(gwtListId)) setGwtListSelection(undefined);
-  }, [flow.nodes, timelineId, selectedId, gwtListId]);
+  }, [flow.nodes, timelineId, selectedId, gwtListId, diff]);
   const searchResults = useMemo(() => {
     if (!project || search.trim().length < 2) return [];
     const needle = search.trim().toLowerCase();
@@ -1072,7 +1074,12 @@ function FlowWorkspace() {
   }, [project, search, flow.nodes]);
 
   const focusNode = useCallback((nodeId: string, recordHistory = true, moveToNode = false) => {
-    const node = flow.nodes.find((candidate) => candidate.id === nodeId);
+    let node = flow.nodes.find((candidate) => candidate.id === nodeId);
+    const leaveTimeline = Boolean(!node && timelineId && project?.nodes.some((candidate) => candidate.id === nodeId));
+    if (leaveTimeline && project) {
+      setTimelineId(undefined);
+      node = toFlow(project).nodes.find((candidate) => candidate.id === nodeId);
+    }
     setHoveredEdgeId(undefined);
     if (recordHistory && selectedId && selectedId !== nodeId) {
       if (selection) setBackStack((stack) => [...stack, selection]);
@@ -1087,9 +1094,11 @@ function FlowWorkspace() {
     setGwtListSelection(undefined);
     if (project) setSelection(selectionForNode(project, nodeId));
     if (node && (!isGwt || moveToNode)) {
-      void setCenter(node.position.x + 80, node.position.y + 60, { zoom: 1.2, duration: 350 });
+      const center = { x: node.position.x + 80, y: node.position.y + 60 };
+      if (leaveTimeline) window.setTimeout(() => void setCenter(center.x, center.y, { zoom: 1.2, duration: 350 }), 50);
+      else void setCenter(center.x, center.y, { zoom: 1.2, duration: 350 });
     }
-  }, [flow.nodes, project, selection, selectedId, setCenter]);
+  }, [flow.nodes, project, selection, selectedId, setCenter, timelineId]);
 
   const clearFocus = useCallback(() => {
     setSelection(undefined);
@@ -1234,7 +1243,7 @@ function FlowWorkspace() {
         </div>
         {Boolean(project.timelines?.length) ? <label className="timeline-picker">
           <span>Timeline</span>
-          <select aria-label="Timeline" value={timelineId ?? ""} onChange={(event) => {
+          <select aria-label="Timeline" disabled={Boolean(diff)} title={diff ? "Diff shows all stories, including removed items." : undefined} value={timelineForView(timelineId, Boolean(diff)) ?? ""} onChange={(event) => {
             setTimelineId(event.target.value || undefined);
             setSelection(undefined);
             setGwtListSelection(undefined);
