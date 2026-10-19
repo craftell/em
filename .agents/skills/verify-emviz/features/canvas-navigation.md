@@ -152,3 +152,5 @@ follow the parent skill's cleanup procedure.
 Report authored expectations, automated checks actually run, manual checks
 actually run, and skipped platform/device paths separately. Do not reuse the
 2026-10-18 or 2026-10-19 release evidence as proof of this new interaction model.
+
+Browser imports without an explicit model ID receive a new preference scope on each import, even when filenames match. Exported HTML retains that import identity and its reload preferences when browser storage is available. Supply a stable model ID in the graph sidecar to retain the scope across reimports.

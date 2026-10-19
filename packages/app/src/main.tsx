@@ -19,7 +19,7 @@ import { apiFetch } from "./api";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
 import { CanvasNavigation } from "./CanvasNavigation";
-import { canvasStorageKey, readCollapsedStories, stableStoryId, writeCollapsedStories } from "./canvasState";
+import { browserImportRoot, canvasStorageKey, readCollapsedStories, stableStoryId, writeCollapsedStories } from "./canvasState";
 import { timelineForView } from "./timeline";
 import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
 import { AgentPanel, useFeedbackSession, type SessionController } from "./feedback";
@@ -1220,9 +1220,10 @@ function FlowWorkspace() {
 
   const importFiles = useCallback((fileList: FileList) => {
     void filesFromFileList(fileList).then((files) => {
-      const parserProject = loadEventModelProjectFromFiles(files);
+      const sidecar = graphSidecarFromFiles(files);
+      const parserProject = loadEventModelProjectFromFiles(files, { root: browserImportRoot(sidecar?.model?.id, crypto.getRandomValues(new Uint32Array(4)).join("-")) });
       const importedProject = parserProject as EventModelProject;
-      importedProject.graphSidecar = graphSidecarFromFiles(files) ?? {
+      importedProject.graphSidecar = sidecar ?? {
         model: {
           id: "browser_import",
           name: "Browser Import"
@@ -1425,7 +1426,7 @@ function FlowWorkspace() {
         onClearPreview={clearPreviewConnection}
       />
       <CanvasNavigation>
-        {(actorFilter.actorIds.length > 0 || actorFilter.includeUnassigned) && !flow.nodes.some((node) => !node.hidden && node.data.projectNode.type !== "story" && node.data.projectNode.type !== "slice") ? <div className="actor-empty" role="status">No screens match the selected actors and current filters.</div> : null}
+        {(actorFilter.actorIds.length > 0 || actorFilter.includeUnassigned) && !flow.nodes.some((node) => !node.hidden && ((node.data.projectNode.type !== "story" && node.data.projectNode.type !== "slice") || (node.data.collapsed && (node.data.sliceCount ?? 0) > 0))) ? <div className="actor-empty" role="status">No screens match the selected actors and current filters.</div> : null}
         <StoryActions.Provider value={toggleStory}>
         <GwtActions.Provider value={gwtActions}>
         <ReactFlow

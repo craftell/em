@@ -265,3 +265,5 @@ processes. Closing discards in-memory request history.
 Use the [CLI reference](https://github.com/craftell/em/blob/main/packages/cli/README.md)
 for limits. Keep the default loopback listener unless remote access was explicitly
 requested. Do not expose the server through a public proxy.
+
+Browser imports without an explicit model ID receive a new preference scope on each import, even when filenames match. Exported HTML retains that import identity and its reload preferences when browser storage is available. Supply a stable model ID in the graph sidecar to retain the scope across reimports.

@@ -20,7 +20,8 @@ function canvasControl(target: EventTarget | null): boolean {
 }
 
 function keyboardControl(target: EventTarget | null): boolean {
-  return editableTarget(target) || Boolean(elementTarget(target)?.closest('button, a[href], summary, [role="button"], [role="tab"], [role="checkbox"], [role="switch"]'));
+  const control = elementTarget(target)?.closest('button, a[href], summary, [role="button"], [role="tab"], [role="checkbox"], [role="switch"]');
+  return editableTarget(target) || Boolean(control && !control.classList.contains("react-flow__node"));
 }
 
 function isSpace(event: KeyboardEvent): boolean {
@@ -60,6 +61,7 @@ export function CanvasNavigation({ children }: { children: ReactNode }) {
       const target = elementTarget(event.target);
       if (target && target !== document.body && target !== document.documentElement && !canvas.contains(target)) return;
       event.preventDefault();
+      event.stopPropagation();
       spacePressed = true;
       if (!drag) setMode("ready");
     };
@@ -144,8 +146,8 @@ export function CanvasNavigation({ children }: { children: ReactNode }) {
       gestureStartZoom = null;
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
     window.addEventListener("blur", reset);
     window.addEventListener("focusin", onFocusIn);
     document.addEventListener("visibilitychange", onVisibility);
@@ -160,8 +162,8 @@ export function CanvasNavigation({ children }: { children: ReactNode }) {
     canvas.addEventListener("gesturechange", onGestureChange, { capture: true, passive: false });
     canvas.addEventListener("gestureend", onGestureEnd, { capture: true, passive: false });
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
       window.removeEventListener("blur", reset);
       window.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("visibilitychange", onVisibility);

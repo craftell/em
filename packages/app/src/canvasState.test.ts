@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canvasMembership, canvasStorageKey, readCollapsedStories, stableStoryId, visibleDomainEdge, writeCollapsedStories } from "./canvasState";
+import { browserImportRoot, canvasMembership, canvasStorageKey, readCollapsedStories, stableStoryId, visibleDomainEdge, writeCollapsedStories } from "./canvasState";
 import type { EventModelProject } from "./types";
 
 function project(root = "/project"): EventModelProject {
@@ -104,5 +104,29 @@ describe("collapsed story preferences", () => {
     }
     expect(readCollapsedStories("key", undefined, { getItem: () => { throw new Error("denied"); } }).size).toBe(0);
     expect(writeCollapsedStories("key", new Set(["first"]), { setItem: () => { throw new Error("quota"); } })).toBe(false);
+  });
+});
+
+describe("browser import identity", () => {
+  it("isolates ambiguous imports until an explicit model identity is supplied", () => {
+    expect(browserImportRoot(undefined, "one")).not.toBe(browserImportRoot(undefined, "two"));
+    expect(browserImportRoot("browser_import", "one")).not.toBe(browserImportRoot("browser_import", "two"));
+    expect(browserImportRoot("stable", "one")).toBe(browserImportRoot("stable", "two"));
+    expect(browserImportRoot("model-a", "same")).not.toBe(browserImportRoot("model-b", "same"));
+  });
+
+  it("retains an import identity through exports, reordering and label edits", () => {
+    const original = project(browserImportRoot(undefined, "one"));
+    const exported: EventModelProject = JSON.parse(JSON.stringify(original));
+    exported.stories.reverse();
+    exported.stories[0].name = "Renamed";
+    expect(canvasStorageKey(exported, "timeline")).toBe(canvasStorageKey(original, "timeline"));
+  });
+
+  it("does not mistake the parser's legacy synthetic root for a unique project", () => {
+    const a = { ...project("browser-import"), graphSidecar: { model: { id: "browser_import" } } };
+    const b = { ...a, stories: a.stories.map((story) => ({ ...story, path: "other/" + story.path })) };
+    expect(canvasStorageKey(a)).not.toBe(canvasStorageKey(b));
+    expect(canvasStorageKey({ ...a, stories: [...a.stories].reverse() })).toBe(canvasStorageKey(a));
   });
 });

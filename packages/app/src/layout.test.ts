@@ -418,4 +418,114 @@ describe("collapsed story projection", () => {
     expect(positions("query_checkout_status")).toEqual(positions());
     expect(positions("event_checkout_started")).toEqual(positions());
   });
+
+  it("counts each existing story slice reference even when another story owns its rendering", () => {
+    const project = projectWithTwoStories();
+    const sharedPath = project.slices[0].path;
+    project.stories[1].slices.push(sharedPath, sharedPath, "missing.slice.yaml");
+    project.timelines = [
+      { id: "checkout-only", name: "Checkout", path: "checkout.timeline.yaml", steps: [{ id: "one", storyId: "checkout", after: [] }] },
+      { id: "status-only", name: "Status", path: "status.timeline.yaml", steps: [{ id: "one", storyId: "status", after: [] }] }
+    ];
+    const before = JSON.stringify(project);
+    for (const collapsedStoryIds of [new Set<string>(), new Set(["checkout", "status"])]) {
+      const flow = toFlow(project, undefined, { collapsedStoryIds });
+      expect(flow.nodes.find((node) => node.id === "story_checkout")?.data.sliceCount).toBe(1);
+      expect(flow.nodes.find((node) => node.id === "story_status")?.data.sliceCount).toBe(2);
+      expect(flow.nodes.filter((node) => node.id === "slice_start_checkout")).toHaveLength(1);
+      expect(flow.nodes.find((node) => node.id === "slice_start_checkout")?.data.storyId).toBe("checkout");
+    }
+    const statusTimeline = toFlow(project, undefined, { timelineId: "status-only", collapsedStoryIds: new Set(["status"]) });
+    expect(statusTimeline.nodes.find((node) => node.id === "story_status")?.data.sliceCount).toBe(2);
+    expect(statusTimeline.nodes.find((node) => node.id === "slice_start_checkout")?.data.storyId).toBe("status");
+    expect(toFlow(project, undefined, { timelineId: "checkout-only" }).nodes.find((node) => node.id === "story_checkout")?.data.sliceCount).toBe(1);
+    expect(JSON.stringify(project)).toBe(before);
+  });
+
+  function legacyStoriesWithDuplicateNames() {
+    const project = projectWithTwoStories();
+    for (const story of project.stories) {
+      delete story.id;
+      story.name = "Same";
+    }
+    for (const slice of project.slices) {
+      delete slice.storyId;
+      slice.storyName = "Same";
+    }
+    for (const node of project.nodes) {
+      delete node.storyId;
+      node.storyName = "Same";
+      if (node.type === "story") {
+        node.label = "Same";
+        node.sourcePath = project.stories[node.id === "story_checkout" ? 0 : 1].path;
+      }
+    }
+    return project;
+  }
+
+  it("keeps same-named legacy stories independently positioned and collapsible by source path", () => {
+    const project = legacyStoriesWithDuplicateNames();
+    const firstId = project.stories[0].path;
+    const secondId = project.stories[1].path;
+    const expanded = toFlow(project, undefined, { edgeVisibility: "all" });
+    const firstHeader = expanded.nodes.find((node) => node.id === "story_checkout")!;
+    const secondHeader = expanded.nodes.find((node) => node.id === "story_status")!;
+    expect(firstHeader.data).toMatchObject({ storyId: firstId, collapsed: false, sliceCount: 1 });
+    expect(secondHeader.data).toMatchObject({ storyId: secondId, collapsed: false, sliceCount: 1 });
+    expect(secondHeader.position.y).toBeGreaterThan(firstHeader.position.y + Number(firstHeader.style?.height));
+    for (const [collapsedId, hiddenId, visibleId, source, target] of [
+      [firstId, "command_start_checkout", "query_checkout_status", "story_checkout", "query_checkout_status"],
+      [secondId, "query_checkout_status", "command_start_checkout", "event_checkout_started", "story_status"]
+    ]) {
+      const flow = toFlow(project, undefined, { edgeVisibility: "all", collapsedStoryIds: new Set([collapsedId]) });
+      expect(flow.nodes.find((node) => node.id === hiddenId)?.hidden).toBe(true);
+      expect(flow.nodes.find((node) => node.id === visibleId)?.hidden).toBe(false);
+      expect(flow.nodes.find((node) => node.id === "story_checkout")?.data.collapsed).toBe(collapsedId === firstId);
+      expect(flow.nodes.find((node) => node.id === "story_status")?.data.collapsed).toBe(collapsedId === secondId);
+      expect(flow.edges.find((edge) => edge.id === "event_query")).toMatchObject({ source, target, data: { proxy: true } });
+    }
+    const collapsed = toFlow(project, undefined, { edgeVisibility: "all", collapsedStoryIds: new Set([firstId, secondId]) });
+    expect(collapsed.edges).toHaveLength(1);
+    expect(collapsed.edges[0]).toMatchObject({ id: "event_query", source: "story_checkout", target: "story_status" });
+  });
+
+  it("keeps legacy collapse ownership stable after reordering and label changes", () => {
+    const project = legacyStoriesWithDuplicateNames();
+    const firstId = project.stories[0].path;
+    project.stories.reverse();
+    project.nodes.reverse();
+    for (const story of project.stories) story.name = "Renamed";
+    for (const slice of project.slices) slice.storyName = "Renamed";
+    for (const node of project.nodes) {
+      node.storyName = "Renamed";
+      if (node.type === "story") node.label = "Renamed";
+    }
+    const before = JSON.stringify(project);
+    const flow = toFlow(project, undefined, { edgeVisibility: "all", collapsedStoryIds: new Set([firstId]) });
+    expect(flow.nodes.find((node) => node.id === "story_checkout")?.data).toMatchObject({ storyId: firstId, collapsed: true });
+    expect(flow.nodes.find((node) => node.id === "story_status")?.data.collapsed).toBe(false);
+    expect(flow.nodes.find((node) => node.id === "event_checkout_started")?.hidden).toBe(true);
+    expect(flow.nodes.find((node) => node.id === "query_checkout_status")?.hidden).toBe(false);
+    expect(flow.edges.find((edge) => edge.id === "event_query")).toMatchObject({ source: "story_checkout", target: "query_checkout_status" });
+    expect(JSON.stringify(project)).toBe(before);
+  });
+
+  it("keeps actor, scope and diff filtering ahead of legacy collapsed proxies", () => {
+    const project = legacyStoriesWithDuplicateNames();
+    const collapsedStoryIds = new Set(project.stories.map((story) => story.path));
+    expect(toFlow(project, undefined, {
+      collapsedStoryIds, edgeVisibility: "all", actorFilter: { actorIds: ["missing"], includeUnassigned: false }
+    }).edges).toEqual([]);
+    expect(toFlow(project, undefined, {
+      collapsedStoryIds, edgeVisibility: "all", scope: "story", focusedStory: "Other"
+    }).edges).toEqual([]);
+    const flow = toFlow(project, undefined, {
+      collapsedStoryIds, edgeVisibility: "all", diffFilter: "changed",
+      diffNodeStatus: { event_checkout_started: "changed", query_checkout_status: "changed" },
+      diffEdgeStatus: { event_query: "changed" }
+    });
+    expect(flow.edges).toHaveLength(1);
+    expect(flow.edges[0]).toMatchObject({ id: "event_query", source: "story_checkout", target: "story_status" });
+  });
+
 });

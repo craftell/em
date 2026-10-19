@@ -35,7 +35,7 @@ function model() {
     return [
       { id: "story-" + index, type: "story", label: story.name, sourcePath: story.path },
       { ...shared, id: "slice-" + index, type: "slice", label: slices[index].title },
-      { ...shared, id: "screen-" + index, type: "screen", label: story.name + " screen" },
+      { ...shared, id: "screen-" + index, type: "screen", label: story.name + " screen", actors: ["member"] },
       { ...shared, id: "command-" + index, type: "command", label: story.name + " command", fields: "id: string" },
       { ...shared, id: "query-" + index, type: "query", label: story.name + " query",
         fields: Array.from({ length: 140 }, (_, n) => "field_" + n + ": string").join("\n") },
@@ -254,7 +254,8 @@ test("Space drag starts over a node and releases cleanly on keyup and window blu
   const { page, errors } = await open();
   try {
     const canvas = page.locator(".canvas");
-    await canvas.focus();
+    await selectNode(page, "command-0", "Alpha command");
+    await node(page, "command-0").focus();
     const start = await center(node(page, "command-0"));
     const before = await viewport(page);
     await page.mouse.move(start.x, start.y);
@@ -266,7 +267,8 @@ test("Space drag starts over a node and releases cleanly on keyup and window blu
     closeTo(dragged.x - before.x, 70, "Space drag x");
     closeTo(dragged.y - before.y, 45, "Space drag y");
     closeTo(dragged.zoom, before.zoom, "Space drag must not zoom", 0.00001);
-    assert.equal(await page.locator(".em-node.selected").count(), 0, "panning over a node must not select it");
+    assert.equal(await node(page, "command-0").locator(".selected").count(), 1, "panning preserves the selection that preceded Space");
+    assert.equal(await page.locator(".em-node.selected").count(), 1, "panning must not select another node");
     await page.keyboard.up("Space");
     await page.mouse.move(start.x + 100, start.y + 70, { steps: 3 });
     await page.waitForTimeout(50);
@@ -438,4 +440,19 @@ test("Space preserves native keyboard button activation and contenteditable inpu
     await page.keyboard.up("Space").catch(() => {});
     await page.close();
   }
+});
+
+test("matching actor filters keep collapsed story summaries without a false empty state", async () => {
+  const { page, errors } = await open();
+  try {
+    await page.locator(".actor-filter summary").click();
+    await page.getByRole("checkbox", { name: "member", exact: true }).check();
+    await page.locator(".actor-filter summary").click();
+    await node(page, "screen-0").waitFor();
+    await page.getByRole("button", { name: "Collapse all stories", exact: true }).click();
+    await node(page, "screen-0").waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Expand Alpha", exact: true }).waitFor();
+    assert.equal(await page.locator(".actor-empty").count(), 0, "matched collapsed stories are not an empty actor result");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
 });
