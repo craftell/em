@@ -54,6 +54,17 @@ references existing repository slices. It stays outside the discovered model dir
 To try it in a disposable copy, put it at the path above and remove the equivalent
 `event-model/stories/customer-onboarding.yaml` from that copy. Keep the slice files.
 
+## Why stories and timelines share a file
+
+A feature file keeps short story definitions beside the presentations that use
+them. A separate file for every timeline and story would add references and
+navigation without moving much content out of the feature file.
+
+The viewer selects a timeline over the canonical model instead of cloning a
+graph for every occurrence. Events and feedback targets retain their canonical
+identities. This choice currently prevents repeating a story or slice within
+one timeline. Another timeline can reuse the same stories.
+
 ## Schema version 1
 
 A feature document requires `kind: feature`, numeric `schema_version: 1`, a
