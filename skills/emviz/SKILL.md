@@ -207,6 +207,22 @@ project or timeline has its own state. Malformed or unavailable browser storage
 must not prevent viewing or toggling stories. Collapse state does not change
 canonical YAML or travel as a model edit.
 
+## Open screen links
+
+Inspect the running viewer before describing link controls. These controls
+require a build containing screen link support; do not assume the pinned
+0.7.0 launcher includes them or silently upgrade it.
+
+A user screen may supply an absolute HTTP or HTTPS `screen.url`. Use the
+screen's top-right link icon or its Details reference link to open the
+destination in a new tab. Keyboard users can focus and activate either link.
+Link controls must not select a node or move the canvas. Figma opens externally.
+
+Preserve supplied links when editing unrelated model fields. Do not invent
+URLs, use relative or local paths, or add links to processors. Export preserves
+the URL without fetching or bundling the destination. The page still needs its
+original host and any required authentication.
+
 ## Move around the canvas
 
 Selection, hover, and story expand/collapse do not automatically pan, zoom, or

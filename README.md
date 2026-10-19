@@ -210,6 +210,32 @@ Diff views match both old and new actor references. Actor name or color edits ma
 
 To place the registry elsewhere, set `paths.actors_file` in `.event-modeling/config.yaml`. The default follows `paths.event_model_dir`. Keep the file inside the project directory.
 
+## Screen links
+
+A user screen can link to a Figma design or another external page:
+
+```yaml
+slice: Register Customer
+screen:
+  type: user
+  name: Sign Up
+  url: https://www.figma.com/design/example/Sign-Up
+```
+
+Replace the example URL with your design link. `screen.url` is an optional
+absolute HTTP or HTTPS URL, valid only on `screen.type: user`. Existing
+models need no migration. Relative paths, local files, unsupported schemes,
+credentials, whitespace, control characters, and backslashes are rejected.
+
+Click the link icon at the top-right of a Screen node, or the reference link in
+**Details**, to open the destination in a new tab. Keyboard users can focus and
+activate the link. Opening it does not select a node, pan, or zoom the canvas.
+Figma opens as an external page.
+
+Standalone HTML preserves the URL. Opening it still requires the destination's
+availability and any required authentication. The CLI does not fetch or bundle
+the linked page.
+
 ## Feature timelines
 
 Keep related stories and their timeline layouts in one `.feature.yaml` file under
@@ -365,6 +391,11 @@ edge modes, scoped accordion persistence, proxy connections, input boundaries,
 and sidebar reachability. A separate built-CLI Chrome pass used a disposable
 project. Physical trackpads, native Safari gestures, and real macOS/Windows
 devices remain untested; the journey lists the exact coverage and evidence.
+
+The [screen links journey](.agents/skills/verify-emviz/features/screen-links.md)
+and `pnpm --filter @emviz/app test:browser:links` cover external design links.
+The journey and skill eval cases are authored but unexecuted; they are not part
+of the historical passing runs above.
 
 ## Package Layout
 

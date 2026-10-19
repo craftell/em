@@ -37,6 +37,11 @@ Never share a fixture, agent ID, port, or browser profile between verification r
   `EMVIZ_EVIDENCE_DIR` set to retain fresh captures. Physical-device and native
   Safari paths remain unexecuted; see the journey's coverage and gap lists.
 
+- [Open screen design links](screen-links.md) covers node and sidebar links,
+  new tabs, keyboard access, stable canvas state, validation, diff, and standalone
+  URL preservation. This journey and its companion skill eval cases are authored
+  but unexecuted. The entry point is `pnpm --filter @emviz/app test:browser:links`.
+
 ## Proof reporting
 
 Record each entry point you exercised. The real-server script covers search selection, an unsent queue across reload, a two-node batch and a GWT turn without `crypto.randomUUID`, diff review, stop, resume, close, and export. The fixture-driven suite also checks Edit, Remove, and exact retry after a failed response and reload. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.

@@ -58,6 +58,9 @@ model.
 - One slice always has one screen or processor.
 - Actors belong only to user screens. Actor IDs are case-sensitive and trimmed.
   Registry colors are quoted six-digit hex strings.
+- Optional `screen.url` uses a supplied absolute HTTP or HTTPS design link on
+  user screens only. Do not invent URLs or add links to system processors.
+  Preserve omitted fields on existing screens.
 - `screen.reads` and `screen.executes` reference names in the same slice only.
 - Events are produced by `commands[].produces`; never add top-level `events:`.
 - `fields` must be a block scalar string, not a YAML map.

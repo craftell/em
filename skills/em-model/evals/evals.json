@@ -18,6 +18,12 @@
       "prompt": "Rename the display names in an existing feature and change its overview so home appears after email. Leave legacy headerless standalone stories, slices, events, and actors as they are.",
       "expected_output": "Preserves feature/local story/timeline/step IDs and slice paths. Changes only requested display names and after layout constraints. Does not infer a causal dependency, migrate legacy documents, or add incomplete headers.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Add the supplied Figma link https://www.figma.com/design/example/Signup to my existing user screen. Leave the system processor and other screens unchanged.",
+      "expected_output": "Writes scalar screen.url on the requested user screen, preserves existing optional omissions and schema version, and changes no graph connections. Uses the supplied URL without opening the destination. Does not assign a URL to processors or invent design references.",
+      "files": []
     }
   ]
 }

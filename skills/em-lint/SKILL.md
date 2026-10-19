@@ -46,7 +46,8 @@ Run the full check set from `references/checks.md`:
 - story checks
 - feature schema version, stable IDs, local references, repeated story or slice
   use within a timeline, and layout cycle checks
-- slice schema checks
+- slice schema checks, including optional user-only `screen.url` strings with
+  absolute HTTP or HTTPS URLs
 - within-slice references
 - cross-slice graph checks
 - domain-event validity heuristics
@@ -56,6 +57,10 @@ Run the full check set from `references/checks.md`:
 Treat timeline `after` as a layout constraint. Do not add its links to the domain
 graph or report a missing business dependency from its absence. Unsupported
 versions and malformed header pairs are F1 findings, not silent migrations.
+
+Check screen URL syntax without opening the destination. Report invalid values
+with their slice paths and field names. Omitted URLs are valid. Remote access
+or authentication failures do not prove a schema error.
 
 Be conservative on domain-event warnings. Dispatch boundary events are valid when
 they have a consumer slice.

@@ -140,6 +140,18 @@ history, connection clicks/hover, and story toggles must not move the viewport;
 The distributable skill's new eval cases are authored expectations. Record an
 agent-evaluation result only after an actual evaluation run.
 
+## Verify screen links
+
+The [screen links journey](features/screen-links.md) and
+`pnpm --filter @emviz/app test:browser:links` cover external design links.
+They are authored but unexecuted. Historical browser passes above do not verify
+this feature. Exercise the node icon and Details reference link separately.
+Verify keyboard access, new-tab destinations, opener isolation, stable canvas
+state, and standalone URL dependencies.
+
+The new modeling, lint, extraction, and viewer eval cases are authored
+expectations. Do not report them as agent-evaluation passes without a run.
+
 ## Evidence
 
 The script prints its run directory. The default is `artifacts/feedback/<run-id>/`, outside the disposable project.
