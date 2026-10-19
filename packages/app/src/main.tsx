@@ -31,6 +31,7 @@ type StandalonePayload = {
   report?: ValidationReport;
   diff?: GraphDiff;
   exportedAt: string;
+  timelineId?: string;
 };
 
 declare global {
@@ -300,7 +301,7 @@ async function fetchAssetText(url: string): Promise<string> {
   return response.text();
 }
 
-async function createStandaloneHtml(project: EventModelProject, report?: ValidationReport, diff?: GraphDiff): Promise<string> {
+async function createStandaloneHtml(project: EventModelProject, report?: ValidationReport, diff?: GraphDiff, timelineId?: string): Promise<string> {
   const moduleScripts = Array.from(document.querySelectorAll<HTMLScriptElement>("script[type=\"module\"][src]"))
     .map((script) => new URL(script.src, window.location.href))
     .filter((url) => !url.pathname.includes("/@vite/") && !url.pathname.endsWith("/@react-refresh"));
@@ -320,6 +321,7 @@ async function createStandaloneHtml(project: EventModelProject, report?: Validat
     project,
     report,
     diff,
+    timelineId,
     exportedAt: new Date().toISOString()
   };
 
@@ -361,6 +363,7 @@ function DiffPanel({
   return (
     <aside className="panel diff-panel">
       <h2>Diff</h2>
+      {diff.timelinesChanged ? <p role="status">Timeline layout changed. Ordering does not add event dependencies.</p> : null}
       <div className="diff-range">
         <code>{diff.base.label}</code>
         <span>to</span>
@@ -877,6 +880,7 @@ function FlowWorkspace() {
   const [project, setProject] = useState<EventModelProject>();
   const [report, setReport] = useState<ValidationReport>();
   const [diff, setDiff] = useState<GraphDiff>();
+  const [timelineId, setTimelineId] = useState<string | undefined>(() => window.__EMVIZ_EXPORT__?.timelineId);
   const [diffFilter, setDiffFilter] = useState<DiffFilter>("all");
   const [actorFilter, setActorFilter] = useState<ActorFilter>({ actorIds: [], includeUnassigned: false });
   const actorProjectRoot = useRef<string | undefined>(undefined);
@@ -1038,6 +1042,7 @@ function FlowWorkspace() {
   }, [fieldFlows, hoveredEdgeId, project, selectedFieldName, selectedId]);
   const flow = useMemo(
     () => project ? toFlow(project, selectedId, {
+      timelineId,
       focusedEdgeIds,
       edgeFieldFlows: fieldFlows,
       selectedFieldName,
@@ -1048,13 +1053,23 @@ function FlowWorkspace() {
       actorFilter,
       previousNodes: diff?.previousNodes
     }) : { nodes: [], edges: [] },
-    [actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
+    [timelineId, actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
   );
+  useEffect(() => {
+    if (timelineId && project && !project.timelines?.some((item) => item.id === timelineId)) setTimelineId(undefined);
+  }, [project, timelineId]);
+  useEffect(() => {
+    if (!timelineId) return;
+    const present = new Set(flow.nodes.map((node) => node.id));
+    if (selectedId && !present.has(selectedId)) setSelection(undefined);
+    if (gwtListId && !present.has(gwtListId)) setGwtListSelection(undefined);
+  }, [flow.nodes, timelineId, selectedId, gwtListId]);
   const searchResults = useMemo(() => {
     if (!project || search.trim().length < 2) return [];
     const needle = search.trim().toLowerCase();
-    return project.nodes.filter((node) => `${node.label} ${node.type} ${node.sourcePath ?? ""}`.toLowerCase().includes(needle)).slice(0, 8);
-  }, [project, search]);
+    const present = new Set(flow.nodes.map((node) => node.id));
+    return project.nodes.filter((node) => present.has(node.id) && `${node.label} ${node.type} ${node.sourcePath ?? ""}`.toLowerCase().includes(needle)).slice(0, 8);
+  }, [project, search, flow.nodes]);
 
   const focusNode = useCallback((nodeId: string, recordHistory = true, moveToNode = false) => {
     const node = flow.nodes.find((candidate) => candidate.id === nodeId);
@@ -1123,7 +1138,7 @@ function FlowWorkspace() {
     setExportState("exporting");
     setExportError(undefined);
     setMenuOpen(false);
-    void createStandaloneHtml(project, report, diff)
+    void createStandaloneHtml(project, report, diff, timelineId)
       .then((html) => {
         downloadTextFile(`${modelFileBaseName(project)}.emviz.html`, html);
       })
@@ -1131,7 +1146,7 @@ function FlowWorkspace() {
         setExportError(error instanceof Error ? error.message : String(error));
       })
       .finally(() => setExportState("idle"));
-  }, [diff, project, report]);
+  }, [diff, project, report, timelineId]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1172,6 +1187,7 @@ function FlowWorkspace() {
           name: "Browser Import"
         }
       };
+      setTimelineId(undefined);
       setSourceMode("local");
       setProject(importedProject);
       const baseReport = validateImportedProject(parserProject);
@@ -1216,6 +1232,22 @@ function FlowWorkspace() {
           <span>{project.slices.length} slices</span>
           <span>{project.nodes.filter((node) => node.type === "event").length} events</span>
         </div>
+        {Boolean(project.timelines?.length) ? <label className="timeline-picker">
+          <span>Timeline</span>
+          <select aria-label="Timeline" value={timelineId ?? ""} onChange={(event) => {
+            setTimelineId(event.target.value || undefined);
+            setSelection(undefined);
+            setGwtListSelection(undefined);
+            setBackStack([]);
+            setForwardStack([]);
+            setHoveredEdgeId(undefined);
+            setSelectedFieldName(undefined);
+            window.setTimeout(() => void fitView({ padding: 0.18, duration: 300 }), 50);
+          }}>
+            <option value="">All stories</option>
+            {project.timelines?.map((timeline) => <option key={timeline.id} value={timeline.id}>{timeline.name} · {timeline.path}</option>)}
+          </select>
+        </label> : null}
         <div className="segmented toolbar-history" aria-label="Selection history">
           <button type="button" disabled={backStack.length === 0} onClick={goBack} aria-label="Back" title="Back">←</button>
           <button type="button" disabled={forwardStack.length === 0} onClick={goForward} aria-label="Forward" title="Forward">→</button>
