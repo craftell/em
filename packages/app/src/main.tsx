@@ -18,6 +18,8 @@ import "./styles.css";
 import { apiFetch } from "./api";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
+import { CanvasNavigation } from "./CanvasNavigation";
+import { browserImportRoot, canvasStorageKey, readCollapsedStories, stableStoryId, writeCollapsedStories } from "./canvasState";
 import { timelineForView } from "./timeline";
 import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
 import { AgentPanel, useFeedbackSession, type SessionController } from "./feedback";
@@ -50,7 +52,12 @@ type CustomNodeData = {
   scenarios?: ProjectNode[];
   scenarioStatus?: Record<string, GraphDiffStatus>;
   selectedScenarioId?: string;
+  storyId?: string;
+  collapsed?: boolean;
+  sliceCount?: number;
 };
+
+const StoryActions = React.createContext<(id: string) => void>(() => {});
 
 const GwtActions = React.createContext<{ open: (id: string) => void; list: (id: string) => void }>({ open: () => {}, list: () => {} });
 
@@ -139,13 +146,21 @@ function EventModelNode({ data }: NodeProps) {
 }
 
 function GroupNode({ data }: NodeProps) {
+  const toggleStory = React.useContext(StoryActions);
   const nodeData = data as CustomNodeData;
   const node = nodeData.projectNode;
   return (
     <div className={`group-node group-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
       {nodeData.diffStatus && nodeData.diffStatus !== "unchanged" ? <div className={`diff-badge diff-badge-${nodeData.diffStatus}`}>{nodeData.diffStatus}</div> : null}
-      <div className="group-title">{node.label}{node.type === "slice" && nodeData.actorRelated ? <span className="actor-related-badge">Related</span> : null}</div>
-      {node.description ? <div className="group-description">{node.description}</div> : null}
+      {node.type === "story" ? <NodeHandles /> : null}
+      <div className="group-title">
+        {node.type === "story" && nodeData.storyId ? <button type="button" className="story-toggle nodrag nopan" aria-label={`${nodeData.collapsed ? "Expand" : "Collapse"} ${node.label}`} aria-expanded={!nodeData.collapsed} onClick={(event) => { event.stopPropagation(); toggleStory(nodeData.storyId!); }}>
+          <span aria-hidden="true">{nodeData.collapsed ? "▸" : "▾"}</span> {node.label}
+          <span className="story-slice-count">{nodeData.sliceCount ?? 0} slices</span>
+        </button> : node.label}
+        {node.type === "slice" && nodeData.actorRelated ? <span className="actor-related-badge">Related</span> : null}
+      </div>
+      {node.description && !nodeData.collapsed ? <div className="group-description">{node.description}</div> : null}
     </div>
   );
 }
@@ -883,6 +898,22 @@ function FlowWorkspace() {
   const [report, setReport] = useState<ValidationReport>();
   const [diff, setDiff] = useState<GraphDiff>();
   const [timelineId, setTimelineId] = useState<string | undefined>(() => window.__EMVIZ_EXPORT__?.timelineId);
+  const [edgeVisibility, setEdgeVisibility] = useState<"auto" | "intra-slice" | "all">("auto");
+  const [collapsedByScope, setCollapsedByScope] = useState<Map<string, ReadonlySet<string>>>(() => new Map());
+  const collapseKey = project ? canvasStorageKey(project, timelineForView(timelineId, Boolean(diff))) : "";
+  const restoredCollapsed = useMemo(() => collapseKey ? readCollapsedStories(collapseKey) : new Set<string>(), [collapseKey]);
+  const collapsedStoryIds = collapsedByScope.get(collapseKey) ?? restoredCollapsed;
+  const changeCollapsedStories = useCallback((ids: ReadonlySet<string>) => {
+    if (!collapseKey) return;
+    setCollapsedByScope((current) => new Map(current).set(collapseKey, ids));
+    writeCollapsedStories(collapseKey, ids);
+  }, [collapseKey]);
+  const toggleStory = useCallback((id: string) => {
+    const ids = new Set(collapsedStoryIds);
+    if (ids.has(id)) ids.delete(id);
+    else ids.add(id);
+    changeCollapsedStories(ids);
+  }, [changeCollapsedStories, collapsedStoryIds]);
   const [diffFilter, setDiffFilter] = useState<DiffFilter>("all");
   const [actorFilter, setActorFilter] = useState<ActorFilter>({ actorIds: [], includeUnassigned: false });
   const actorProjectRoot = useRef<string | undefined>(undefined);
@@ -1045,6 +1076,8 @@ function FlowWorkspace() {
   const flow = useMemo(
     () => project ? toFlow(project, selectedId, {
       timelineId: timelineForView(timelineId, Boolean(diff)),
+      edgeVisibility,
+      collapsedStoryIds,
       focusedEdgeIds,
       edgeFieldFlows: fieldFlows,
       selectedFieldName,
@@ -1055,7 +1088,7 @@ function FlowWorkspace() {
       actorFilter,
       previousNodes: diff?.previousNodes
     }) : { nodes: [], edges: [] },
-    [timelineId, actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
+    [timelineId, edgeVisibility, collapsedStoryIds, actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
   );
   useEffect(() => {
     if (timelineId && project && !project.timelines?.some((item) => item.id === timelineId)) setTimelineId(undefined);
@@ -1093,8 +1126,11 @@ function FlowWorkspace() {
     if (!isGwt) gwtOpener.current = null;
     setGwtListSelection(undefined);
     if (project) setSelection(selectionForNode(project, nodeId));
-    if (node && (!isGwt || moveToNode)) {
-      const center = { x: node.position.x + 80, y: node.position.y + 60 };
+    if (node && moveToNode) {
+      if (node.hidden && node.data.storyId) {
+        node = flow.nodes.find((candidate) => candidate.data.collapsed && candidate.data.storyId === node!.data.storyId) ?? node;
+      }
+      const center = { x: node.position.x + (node.initialWidth ?? 178) / 2, y: node.position.y + (node.initialHeight ?? 92) / 2 };
       if (leaveTimeline) window.setTimeout(() => void setCenter(center.x, center.y, { zoom: 1.2, duration: 350 }), 50);
       else void setCenter(center.x, center.y, { zoom: 1.2, duration: 350 });
     }
@@ -1132,11 +1168,7 @@ function FlowWorkspace() {
     const edge = project?.edges.find((candidate) => candidate.id === edgeId);
     if (!edge) return;
     setHoveredEdgeId(edgeId);
-    const relatedNodes = flow.nodes.filter((node) => node.id === edge.source || node.id === edge.target);
-    if (relatedNodes.length > 0) {
-      void fitView({ nodes: relatedNodes, padding: 0.36, duration: 260, maxZoom: 1.25 });
-    }
-  }, [fitView, flow.nodes, project?.edges]);
+  }, [project?.edges]);
 
   const clearPreviewConnection = useCallback(() => {
     setHoveredEdgeId(undefined);
@@ -1188,9 +1220,10 @@ function FlowWorkspace() {
 
   const importFiles = useCallback((fileList: FileList) => {
     void filesFromFileList(fileList).then((files) => {
-      const parserProject = loadEventModelProjectFromFiles(files);
+      const sidecar = graphSidecarFromFiles(files);
+      const parserProject = loadEventModelProjectFromFiles(files, { root: browserImportRoot(sidecar?.model?.id, crypto.getRandomValues(new Uint32Array(4)).join("-")) });
       const importedProject = parserProject as EventModelProject;
-      importedProject.graphSidecar = graphSidecarFromFiles(files) ?? {
+      importedProject.graphSidecar = sidecar ?? {
         model: {
           id: "browser_import",
           name: "Browser Import"
@@ -1257,6 +1290,18 @@ function FlowWorkspace() {
             {project.timelines?.map((timeline) => <option key={timeline.id} value={timeline.id}>{timeline.name} · {timeline.path}</option>)}
           </select>
         </label> : null}
+        <label className="edge-visibility-picker">
+          <span>Edges</span>
+          <select aria-label="Edge visibility" value={edgeVisibility} onChange={(event) => setEdgeVisibility(event.target.value as typeof edgeVisibility)}>
+            <option value="auto">Auto</option>
+            <option value="intra-slice">Intra-slice only</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <div className="segmented story-controls" aria-label="Story visibility">
+          <button type="button" onClick={() => changeCollapsedStories(new Set())}>Expand all stories</button>
+          <button type="button" onClick={() => changeCollapsedStories(new Set(project.stories.map(stableStoryId)))}>Collapse all stories</button>
+        </div>
         <div className="segmented toolbar-history" aria-label="Selection history">
           <button type="button" disabled={backStack.length === 0} onClick={goBack} aria-label="Back" title="Back">←</button>
           <button type="button" disabled={forwardStack.length === 0} onClick={goForward} aria-label="Forward" title="Forward">→</button>
@@ -1331,6 +1376,7 @@ function FlowWorkspace() {
         </div>
         {exportError ? <div className="toolbar-error" role="alert">{exportError}</div> : null}
       </header>
+      <div className="workspace">
       <ValidationPanel
         report={report}
         onSelect={focusNode}
@@ -1380,8 +1426,9 @@ function FlowWorkspace() {
         onPreviewConnection={previewConnection}
         onClearPreview={clearPreviewConnection}
       />
-      <main className="canvas" tabIndex={-1} aria-label="Event model diagram">
-        {(actorFilter.actorIds.length > 0 || actorFilter.includeUnassigned) && !flow.nodes.some((node) => !node.hidden && node.data.projectNode.type !== "story" && node.data.projectNode.type !== "slice") ? <div className="actor-empty" role="status">No screens match the selected actors and current filters.</div> : null}
+      <CanvasNavigation>
+        {(actorFilter.actorIds.length > 0 || actorFilter.includeUnassigned) && !flow.nodes.some((node) => !node.hidden && ((node.data.projectNode.type !== "story" && node.data.projectNode.type !== "slice") || (node.data.collapsed && (node.data.sliceCount ?? 0) > 0))) ? <div className="actor-empty" role="status">No screens match the selected actors and current filters.</div> : null}
+        <StoryActions.Provider value={toggleStory}>
         <GwtActions.Provider value={gwtActions}>
         <ReactFlow
           nodes={flow.nodes}
@@ -1393,13 +1440,22 @@ function FlowWorkspace() {
           minZoom={0.2}
           maxZoom={1.8}
           nodesDraggable={false}
+          panOnScroll={false}
+          zoomOnScroll={false}
+          zoomOnPinch={false}
+          zoomActivationKeyCode={null}
+          panActivationKeyCode={null}
+          zoomOnDoubleClick={false}
+          autoPanOnNodeFocus={false}
           colorMode="light"
         >
           <Background gap={18} size={1} />
           <Controls />
         </ReactFlow>
         </GwtActions.Provider>
-      </main>
+        </StoryActions.Provider>
+      </CanvasNavigation>
+      </div>
     </div>
   );
 }

@@ -21,6 +21,24 @@ checks. That run's evidence is retained outside the checkout at
 Selecting a historical timeline in a diff is not tested because the selector is
 disabled there.
 
+The [canvas navigation journey](features/canvas-navigation.md) passed 19 Chromium
+regression cases on 2026-10-19 at `af8f7c8`, including the original nine cases.
+The same revision passed the real-server feedback and timeline journeys. The
+existing app browser suite passed all 17 cases on that production code after
+correcting its pre-existing offscreen-click harness race. See the journey's run
+record for the exact commands and coverage.
+
+A separate `chrome-devtools-axi` pass used a disposable built-CLI project and
+confirmed edge modes, canonical sidebar connections, collapse/proxies/reload,
+timeline-scoped preferences, explicit collapsed focus, and sidebar hit targets.
+Evidence is under
+`/home/kfukuyama/fm-homes/personal/data/emviz-canvas-navigation/`.
+Navigation recordings and per-case captures are in
+`final-navigation/navigation-2026-10-19T08-28-57-057Z/`.
+The full real-server actor registry journey, two-machine access, physical
+trackpads, native Safari gestures, and real macOS/Windows devices remain
+unexecuted. Synthetic gesture checks are not physical-device verification.
+
 Read the [feature map](features/README.md) before choosing a journey. Use a checkout containing the feedback implementation.
 
 ## Launch
@@ -83,6 +101,44 @@ pnpm --filter @emviz/app test:browser
 The [actor journey](features/actors.md) adds registry tags, multi-selection, bounded system context, and historical metadata checks. Its browser recording and screenshots remain unexecuted for the actor change.
 
 That older suite uses intercepted API fixtures for many checks. Its pass does not replace the new real-server feedback journey.
+
+## Canvas and story controls
+
+After building the final app, run the new regression entry point:
+
+```sh
+EMVIZ_EVIDENCE_DIR=/path/outside/the/checkout \
+  pnpm --filter @emviz/app test:browser:navigation
+```
+
+This suite starts its own Vite server and isolated Chromium contexts with
+intercepted model fixtures. When `EMVIZ_EVIDENCE_DIR` is set, it saves a video,
+screenshot, ARIA snapshot, and viewport measurement per page. `captures.json`
+maps artifact IDs to test names. Set `EMVIZ_HEADED=1` for a visible browser.
+Do not build during a browser run; Vite can reload the page mid-assertion.
+
+The toolbar reserves its actual wrapped height. Open Actors content also takes
+layout space, so sidebar tabs and actions stay reachable without closing the
+actor choices. The navigation suite checks normal clicks at 1440, 1280, 1024,
+and 680px, plus open-Actors sidebar access without camera-transform changes.
+Never force-click an obscured control to turn a failed journey into a pass.
+
+Also rerun the existing browser and timeline suites. The
+[canvas navigation journey](features/canvas-navigation.md) is the acceptance
+checklist, including storage failures, project/timeline isolation, explicit
+focus, and platform/device paths. Do not claim every checklist item is automated
+or passed merely because the entry point exists.
+
+Choose **All** in **Edge visibility** and **Expand all stories** when a test
+compares the complete rendered domain-edge set. Auto hides cross-slice edges
+until a slice or node is selected; collapsed stories may replace visible domain
+edges with proxies. Neither display choice changes canonical connections.
+Sidebar incoming/outgoing connections remain available. Selection, search,
+history, connection clicks/hover, and story toggles must not move the viewport;
+**Focus selected node** is an explicit camera action.
+
+The distributable skill's new eval cases are authored expectations. Record an
+agent-evaluation result only after an actual evaluation run.
 
 ## Evidence
 

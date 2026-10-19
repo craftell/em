@@ -1,6 +1,12 @@
 # Inspect actor tags and filtered flows
 
-DRAFT. The actor browser journey, screenshots, video, and trace have not been run or captured for this change.
+DRAFT. The full real-server actor registry-edit journey below remains unexecuted.
+Fixture-driven actor cases ran in the app browser suite at `af8f7c8`. The two
+sidebar cases passed unchanged after correcting the open Actors layout; both
+also passed on clean `main` at `4e27ddd`, confirming a product regression rather
+than a test error. The separate navigation case and real-server Chrome capture
+check that open actor choices do not cover sidebar controls. This evidence does
+not establish the registry-edit, frozen-metadata, or remote journeys below.
 
 Read the [verification skill](../SKILL.md). Use an isolated fixture. Do not attach to an existing user session.
 

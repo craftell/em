@@ -31,6 +31,62 @@ Set `EMVIZ_EVIDENCE_DIR` to keep evidence outside the worktree. The default is `
 
 Covered: timeline selection, sibling stacking, successor placement, a join step after two predecessors, rapid selector changes, selection and search limits, Details navigation outside the timeline, actor filtering, `after`-only edits (canonical and rendered edges unchanged), session diff (selector disabled, all stories, layout notice), feedback on a feature-file slice, invalid files (schema version, missing step, cycle, repeated story, repeated slice, duplicate feature ID, incomplete header), removal of the feature file, and standalone export reopened from `file://` (live and diff) with no HTTP requests.
 
+## Canvas navigation regression
+
+`tests/navigation.browser.mjs` is the new regression entry point:
+
+```sh
+pnpm build
+pnpm --filter @emviz/app test:browser:navigation
+```
+
+Status: all 19 Chromium cases passed on 2026-10-19 at `af8f7c8`, including all
+original nine cases. Set `EMVIZ_EVIDENCE_DIR` to an outside-worktree directory to
+save per-page videos, screenshots, ARIA snapshots and viewport measurements.
+`captures.json` maps artifact IDs to test names. Set `EMVIZ_HEADED=1` to watch.
+Build before starting a browser run; concurrent builds can trigger Vite reloads.
+See the [canvas navigation verification journey](../../../.agents/skills/verify-emviz/features/canvas-navigation.md)
+for exact coverage, retained evidence and remaining platform/device gaps.
+Synthetic Meta-wheel and native-gesture events do not prove physical trackpads
+or Safari behavior.
+
+Required checks include:
+
+- Auto (default) intra-slice edges, every incident cross-slice edge for a selected
+  slice, and only incident cross-slice edges for a selected ordinary node;
+  Intra-slice only and All overrides.
+- Canonical incoming/outgoing sidebar connections in every display mode.
+- Per-story counts and accordion controls, Expand all stories / Collapse all
+  stories, project-and-timeline-scoped stable-ID persistence, and safe fallback
+  for malformed or unavailable localStorage.
+- Collapsed-story proxy edges derived from actual domain edges, never timeline
+  `after` chronology.
+- Unchanged viewport after selection, search/history, connection clicks/hover,
+  and story toggles; explicit Focus selected node centers a selected target or
+  its collapsed story summary.
+- Space-drag over nodes/edges with editable exclusions and keyup/blur cleanup;
+  vertical wheel pan, Shift horizontal pan, cursor-centered macOS Cmd+wheel and
+  Windows Ctrl+wheel zoom, two-axis trackpad pan and pinch, and unaffected sidebar
+  scrolling.
+- Meaningful regression paths in Current, diff views, and offline exports.
+- Toolbar/sidebar hit targets at 1440, 1280, 1024 and 680px, including open
+  Actors choices. Controls must work with normal clicks, not forced clicks.
+
+The old same-name YAML identity case had an offscreen forced-click race that
+also failed on clean `main` at `4e27ddd`. It now uses visible source-scoped
+search for command and scenario selection. The two actor cases were not edited;
+the product layout fix restores their original normal-click paths.
+
+When a browser assertion compares all rendered domain edges, first choose
+**All** in **Edge visibility** and expand stories. The default Auto mode and
+collapsed summaries intentionally change rendered edges without changing the
+canonical graph. The existing timeline `after`-only checks must keep comparing
+canonical endpoints too, rather than passing because those edges are hidden.
+
+After implementation changes, rerun the existing browser and timeline suites
+against a fresh build. Never present this checklist, a synthetic event test,
+or a prior-release pass as a real-device verification.
+
 ## Connection identity regression
 
 The live and saved-HTML suite now parses actual YAML with 12 slices sharing command, query, and scenario names. It verifies direct incoming/outgoing neighbors, navigation to the correct source file, copied connection context, unique canvas IDs, deduplicated references, and disconnected GWT nodes. Hand-built graph fixtures alone cannot catch parser-generated ID collisions.
