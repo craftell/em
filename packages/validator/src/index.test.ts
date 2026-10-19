@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEventModelProject, type EventModelProject } from "@emviz/parser";
+import { loadEventModelProject, loadEventModelProjectFromFiles, type EventModelProject } from "@emviz/parser";
 import { validateEventModelProject } from "./index.js";
 
 describe("validateEventModelProject", () => {
@@ -58,4 +58,17 @@ describe("validateEventModelProject", () => {
 
     expect(report.findings.some((finding) => finding.check === "C3")).toBe(false);
   });
+});
+
+it("reports invalid screen links as validation errors with the source path", () => {
+  const sourcePath = "event-model/features/example.slice.yaml";
+  const project = loadEventModelProjectFromFiles([
+    { path: "event-model/events.yaml", content: "events: {}\n" },
+    { path: sourcePath, content: "slice: Example\nscreen:\n  url: javascript:alert(1)\n" }
+  ]);
+  const report = validateEventModelProject(project, { sourcePaths: new Set([sourcePath]), sidecar: undefined });
+  expect(report.errors).toBe(1);
+  expect(report.findings.filter((finding) => finding.check === "L10")).toEqual([
+    expect.objectContaining({ severity: "error", path: sourcePath, message: expect.stringContaining("screen.url") })
+  ]);
 });

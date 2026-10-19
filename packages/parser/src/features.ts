@@ -1,4 +1,5 @@
 import YAML from "yaml";
+import { parseScreenLink } from "./screen-link.js";
 import type { ModelIssue, StoryModel, TimelineModel } from "./types.js";
 
 type SourceFile = { path: string; content: string };
@@ -20,7 +21,7 @@ export function documentIssues(content: string, path: string, kind: string): Mod
     return [{ check: "F1", path, message: `Invalid YAML: ${error instanceof Error ? error.message : String(error)}` }];
   }
   if (!record(raw)) return [];
-  const issues: ModelIssue[] = [];
+  const issues: ModelIssue[] = kind === "slice" ? parseScreenLink(raw.screen, path).issues : [];
   if (raw.kind !== undefined && raw.kind !== kind) {
     issues.push({ check: "F1", path, message: `Expected kind "${kind}", received "${String(raw.kind)}".` });
   }

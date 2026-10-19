@@ -79,6 +79,7 @@ export function buildGraph(project: Model): Pick<EventModelProject, "nodes" | "e
       ...(slice.screen.type === "user" ? {
         actorDefinitions: slice.screen.actors.map((id) => project.actors?.find((actor) => actor.id === id)).filter((actor): actor is NonNullable<typeof actor> => Boolean(actor))
       } : {}),
+      ...(slice.screen.url === undefined ? {} : { url: slice.screen.url }),
       screenType: slice.screen.type
     });
     connect("slice-screen", currentSliceId, currentScreenId);
