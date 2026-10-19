@@ -508,3 +508,42 @@ describe("feedback batches", () => {
     expect(session.snapshot("current").feedback.request!.items).toHaveLength(4);
   });
 });
+
+describe("feature timeline snapshots", () => {
+  it("discovers feature files and includes layout edits in the frozen revision", () => {
+    const root = project();
+    const featurePath = "event-model/features/account.feature.yaml";
+    const content = {
+      kind: "feature", id: "account", schema_version: 1, name: "Account",
+      stories: [{ id: "register", name: "Register", slices: [slice] }],
+      timelines: [{ id: "main", name: "Main", steps: [{ id: "start", story: "register" }] }]
+    };
+    fs.writeFileSync(path.join(root, featurePath), JSON.stringify(content));
+    const before = readSnapshot(root);
+    expect(before.files.has(featurePath)).toBe(true);
+    expect(before.project.timelines).toHaveLength(1);
+    expect(before.project.stories[0].path).toBe(featurePath);
+    content.timelines[0].name = "Revised";
+    fs.writeFileSync(path.join(root, featurePath), JSON.stringify(content));
+    const after = readSnapshot(root);
+    expect(after.revision).not.toBe(before.revision);
+    expect(after.project.timelines![0].name).toBe("Revised");
+  });
+
+  it("captures actual feature source for same-named story feedback", () => {
+    const root = project();
+    const featurePath = "event-model/features/account.feature.yaml";
+    fs.writeFileSync(path.join(root, featurePath), JSON.stringify({
+      kind: "feature", id: "account", schema_version: 1, name: "Account",
+      stories: [{ id: "a", name: "Same", slices: [slice] }, { id: "b", name: "Same", slices: [] }],
+      timelines: [{ id: "main", name: "Main", steps: [{ id: "a", story: "a" }] }]
+    }));
+    const session = new FeedbackSession(root);
+    const current = session.snapshot("current");
+    const stories = current.project.nodes.filter((node) => node.type === "story");
+    expect(stories).toHaveLength(2);
+    expect(() => session.submit({
+      clientRequestId: "story", nodeId: stories[1].id, revision: current.revision, message: "Rename this story."
+    })).not.toThrow();
+  });
+});

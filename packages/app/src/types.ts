@@ -13,6 +13,7 @@ export type ProjectNode = {
   type: GraphNodeType;
   label: string;
   storyName?: string;
+  storyId?: string;
   sliceTitle?: string;
   sourcePath?: string;
   sourceName?: string;
@@ -47,6 +48,9 @@ export type FieldFlow = {
 };
 
 export type ProjectStory = {
+  id?: string;
+  localId?: string;
+  featureName?: string;
   name: string;
   description: string;
   path: string;
@@ -73,12 +77,22 @@ export type ProjectConfig = {
 };
 
 export type ProjectSlice = {
+  storyId?: string;
   title: string;
   path: string;
   storyName?: string;
 };
 
+export type TimelineModel = {
+  id: string;
+  name: string;
+  path: string;
+  steps: { id: string; storyId: string; after: string[] }[];
+};
+
 export type EventModelProject = {
+  timelines?: TimelineModel[];
+  modelIssues?: { check: string; message: string; path: string }[];
   root: string;
   config: ProjectConfig;
   events: ProjectEvent[];
@@ -121,6 +135,8 @@ export type GraphDiffSummary = {
 };
 
 export type GraphDiff = {
+  previousTimelines?: TimelineModel[];
+  timelinesChanged?: boolean;
   base: {
     label: string;
   };

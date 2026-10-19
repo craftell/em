@@ -1765,3 +1765,6 @@ pre {
 .actor-related-badge { display: inline-block; margin-left: 8px; padding: 2px 5px; border: 1px solid #94a3b8; border-radius: 4px; color: #475569; background: #f8fafc; font-size: 10px; font-weight: 600; vertical-align: middle; }
 
 .actor-empty { position: absolute; top: 18px; left: 18px; z-index: 10; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #475569; font-size: 13px; }
+
+.timeline-picker { display: flex; align-items: center; gap: 6px; font-size: 12px; min-width: 0; }
+.timeline-picker select { max-width: 280px; min-width: 90px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; color: #0f172a; }

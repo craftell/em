@@ -21,6 +21,11 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 
 - [Access from another private-network machine](remote-access.md) covers explicit IP binding, authenticated browser bootstrap, Host and Origin rejection, and remote cleanup. This journey is unexecuted.
 
+- [Inspect feature timelines](feature-timelines.md) covers branch and join layout,
+  timeline selection, actor filtering, legacy compatibility, validation, diff,
+  and offline export. It was executed on 2026-10-19 on top of `ec87e4a` and passed;
+  run it with `pnpm --filter @emviz/app test:browser:timelines`.
+
 ## Proof reporting
 
 Record each entry point you exercised. The real-server script covers search selection, an unsent queue across reload, a two-node batch and a GWT turn without `crypto.randomUUID`, diff review, stop, resume, close, and export. The fixture-driven suite also checks Edit, Remove, and exact retry after a failed response and reload. The existing GWT browser suite covers additional list, keyboard, and canvas paths with fixtures.

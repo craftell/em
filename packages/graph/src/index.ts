@@ -17,6 +17,7 @@ export type GraphSidecar = {
     events: string;
     actors?: string;
     stories: string[];
+    features?: string[];
     slices: string[];
   };
   nodes: Record<string, GraphSidecarNode>;
@@ -45,6 +46,8 @@ export type GraphDiff = {
   target: {
     label: string;
   };
+  previousTimelines?: EventModelProject["timelines"];
+  timelinesChanged?: boolean;
   previousGwtNodes?: Record<string, GraphNode>;
   previousNodes?: Record<string, GraphNode>;
   previousEdges?: Record<string, GraphEdge>;
@@ -64,7 +67,7 @@ export type GraphDiffResult = {
 function selectorForNode(node: GraphNode): Record<string, string> {
   switch (node.type) {
     case "story":
-      return { name: node.label };
+      return node.storyId ? { name: node.label, storyId: node.storyId } : { name: node.label };
     case "slice":
       return { slice: node.label };
     case "screen":
@@ -133,6 +136,7 @@ function comparableNode(node: GraphNode): Record<string, unknown> {
     type: node.type,
     label: node.label,
     storyName: node.storyName,
+    storyId: node.storyId,
     sliceTitle: node.sliceTitle,
     sourceName: node.sourceName,
     actors: node.actors,
@@ -175,6 +179,8 @@ function cloneProject(project: EventModelProject): EventModelProject {
     events: project.events.map((event) => ({ ...event })),
     actors: project.actors?.map((actor) => ({ ...actor })),
     actorIssues: project.actorIssues?.map((issue) => ({ ...issue })),
+    timelines: project.timelines?.map((timeline) => structuredClone(timeline)),
+    modelIssues: project.modelIssues?.map((issue) => ({ ...issue })),
     stories: project.stories.map((story) => ({ ...story, slices: [...story.slices] })),
     slices: project.slices.map((slice) => ({
       ...slice,
@@ -224,14 +230,14 @@ function uniqueEdgeId(existingIds: Set<string>, id: string): string {
 }
 
 function mergeRemovedModelContainers(merged: EventModelProject, base: EventModelProject): void {
-  const storyNames = new Set(merged.stories.map((story) => story.name));
+  const storyNames = new Set(merged.stories.map((story) => story.id ?? story.name));
   const slicePaths = new Set(merged.slices.map((slice) => slice.path));
   const eventNames = new Set(merged.events.map((event) => event.name));
 
   for (const story of base.stories) {
-    if (storyNames.has(story.name)) continue;
+    if (storyNames.has(story.id ?? story.name)) continue;
     merged.stories.push({ ...story, slices: [...story.slices] });
-    storyNames.add(story.name);
+    storyNames.add(story.id ?? story.name);
   }
 
   for (const slice of base.slices) {
@@ -286,6 +292,7 @@ export function buildGraphSidecar(project: EventModelProject, existing?: GraphSi
       events: project.config.paths.eventsFile,
       actors: project.config.paths.actorsFile,
       stories: [`${project.config.paths.storiesDir}/**/*.yaml`],
+      features: [`${project.config.paths.featuresDir}/**/*.feature.yaml`],
       slices: [`${project.config.paths.featuresDir}/**/*${project.config.paths.sliceExtension}`]
     },
     nodes: Object.fromEntries(
@@ -309,6 +316,7 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
     const occurrences = new Map<string, number>();
     return new Map(project.nodes.map((node) => {
       if (node.type === "event") return [node.id, nodeKey(node)];
+      if (node.type === "story" && node.storyId) return [node.id, stableJson({ type: "story", storyId: node.storyId })];
       const key = stableJson({ selector: nodeKey(node), sourcePath: node.sourcePath });
       const occurrence = occurrences.get(key) ?? 0;
       occurrences.set(key, occurrence + 1);
@@ -385,6 +393,8 @@ export function diffEventModelProjects(base: EventModelProject, target: EventMod
     diff: {
       base: { label: labels.base ?? "base" },
       target: { label: labels.target ?? "target" },
+      previousTimelines: base.timelines ? structuredClone(base.timelines) : [],
+      timelinesChanged: stableJson(base.timelines ?? []) !== stableJson(target.timelines ?? []),
       previousGwtNodes,
       previousNodes,
       previousEdges,

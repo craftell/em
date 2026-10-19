@@ -132,7 +132,10 @@ function connectedComponentCount(project: EventModelProject): number {
 }
 
 export function validateEventModelProject(project: EventModelProject, snapshot?: { sourcePaths: ReadonlySet<string>; sidecar: GraphSidecar | undefined }): ValidationReport {
-  const findings: ValidationFinding[] = (project.actorIssues ?? []).map((issue) => finding("error", "A1", issue.message, issue.path));
+  const findings: ValidationFinding[] = [
+    ...(project.actorIssues ?? []).map((issue) => finding("error", "A1", issue.message, issue.path)),
+    ...(project.modelIssues ?? []).map((issue) => finding("error", issue.check, issue.message, issue.path))
+  ];
   const eventNames = new Set(project.events.map((event) => event.name));
   const produced = new Map<string, string[]>();
   const consumed = new Map<string, string[]>();

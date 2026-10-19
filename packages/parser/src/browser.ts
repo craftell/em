@@ -1,4 +1,5 @@
 import YAML from "yaml";
+import { documentIssues, parseFeatureFiles } from "./features.js";
 import { loadActors, parseActorReferences } from "./actors.js";
 export { actorColor } from "./actors.js";
 import { buildGraph } from "./graph.js";
@@ -137,12 +138,13 @@ function parseScreen(raw: RawSlice["screen"]): ScreenModel {
   };
 }
 
-function parseSliceText(slicePath: string, content: string, storyBySlice: Map<string, string>): SliceModel {
+function parseSliceText(slicePath: string, content: string, storyBySlice: Map<string, StoryModel>): SliceModel {
   const raw = YAML.parse(content) as RawSlice | null;
   return {
     title: typeof raw?.slice === "string" ? raw.slice : basename(slicePath),
     path: slicePath,
-    storyName: storyBySlice.get(slicePath),
+    storyName: storyBySlice.get(slicePath)?.name,
+    storyId: storyBySlice.get(slicePath)?.id,
     screen: parseScreen(raw?.screen),
     commands: parseCommands(raw?.commands),
     queries: parseQueries(raw?.queries),
@@ -165,17 +167,32 @@ export function loadEventModelProjectFromFiles(files: InMemoryEventModelFile[], 
   if (eventsContent === undefined) throw new Error(`Missing events file: ${eventsFile}`);
 
   const events = parseEventsText(eventsFile, eventsContent);
+  const featureData = parseFeatureFiles([...normalizedFiles.entries()]
+    .filter(([filePath]) => (featuresDir === "" || filePath.startsWith(`${featuresDir}/`)) && filePath.endsWith(".feature.yaml"))
+    .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+    .map(([path, content]) => ({ path, content })));
   const stories = [...normalizedFiles.entries()]
     .filter(([filePath]) => filePath.split("/").slice(0, -1).join("/") === storiesDir && filePath.endsWith(".yaml"))
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([filePath, content]) => parseStoryText(filePath, content));
-  const storyBySlice = new Map<string, string>();
-  for (const story of stories) for (const slicePath of story.slices) storyBySlice.set(normalizeRelativePath(slicePath), story.name);
+  stories.push(...featureData.stories);
+  const storyBySlice = new Map<string, StoryModel>();
+  for (const story of stories) for (const slicePath of story.slices) storyBySlice.set(normalizeRelativePath(slicePath), story);
   const storySlicePaths = stories.flatMap((story) => story.slices.map(normalizeRelativePath));
   const discoveredSlicePaths = [...normalizedFiles.keys()].filter((filePath) => (featuresDir === "" || filePath.startsWith(`${featuresDir}/`)) && filePath.endsWith(sliceExtension));
   const slicePaths = [...new Set([...storySlicePaths, ...discoveredSlicePaths])].sort();
   const slices = slicePaths.filter((filePath) => normalizedFiles.has(filePath)).map((filePath) => parseSliceText(filePath, normalizedFiles.get(filePath) ?? "", storyBySlice));
   const actorData = loadActors(normalizedFiles.get(actorsFile), actorsFile, slices);
+  const sourceDocuments = [
+    { path: eventsFile, kind: "events" },
+    ...stories.filter((story) => !story.id).map((story) => ({ path: story.path, kind: "story" })),
+    ...slices.map((slice) => ({ path: slice.path, kind: "slice" })),
+    ...(normalizedFiles.has(actorsFile) ? [{ path: actorsFile, kind: "actors" }] : [])
+  ];
+  const modelIssues = [
+    ...featureData.modelIssues,
+    ...sourceDocuments.flatMap((source) => documentIssues(normalizedFiles.get(source.path) ?? "", source.path, source.kind))
+  ];
   const projectWithoutGraph = {
     root: options.root ?? "browser-import",
     config: {
@@ -184,6 +201,8 @@ export function loadEventModelProjectFromFiles(files: InMemoryEventModelFile[], 
     },
     events,
     stories,
+    timelines: featureData.timelines,
+    modelIssues,
     slices,
     ...actorData
   };
