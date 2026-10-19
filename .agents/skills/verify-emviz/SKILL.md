@@ -12,9 +12,11 @@ The core feedback journey passed on 2026-10-18 at `d8cb291`, including the merge
 
 The app browser suite also passed all 17 cases, including queue editing, removal, exact retry after an uncertain response and reload, GWT navigation, and actor fixtures. The full real-server actor journey and two-machine remote-access journey remain unexecuted. Their feature files keep their draft labels.
 
-The new [feature timeline journey](features/feature-timelines.md) is a draft.
-It has source-based instructions but no executed browser proof, screenshots, or
-recording for the timeline change. Earlier evidence does not verify this feature.
+The [feature timeline journey](features/feature-timelines.md) was executed on 2026-10-19
+on top of `ec87e4a` with `pnpm --filter @emviz/app test:browser:timelines`. It passed,
+including all seven invalid-input cases and the offline export. Evidence is kept
+outside the checkout; PR #11 names the location. Selecting a historical timeline in
+a diff is not tested because the selector is disabled there.
 
 Read the [feature map](features/README.md) before choosing a journey. Use a checkout containing the feedback implementation.
 

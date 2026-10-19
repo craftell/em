@@ -1,7 +1,26 @@
 # Inspect feature timelines
 
-Status: draft, unexecuted. No browser screenshots, video, or trace establish this
-feature's behavior yet. Earlier feedback evidence does not cover timelines.
+Status: executed on 2026-10-19 on top of `ec87e4a` (PR #11) with
+`packages/app/tests/timelines.browser.mjs`. The run drove the built CLI and app in
+Chromium against a disposable project and passed. Video, trace, screenshots, ARIA
+snapshots, and `checks.json` are kept outside the checkout; the PR description
+names their location. Earlier feedback evidence does not cover timelines.
+
+## Run it
+
+```sh
+pnpm build
+EMVIZ_EVIDENCE_DIR=/path/outside/the/checkout \
+  pnpm --filter @emviz/app test:browser:timelines
+```
+
+The script automates every numbered step below and every invalid case. The trace
+holds the session token, so do not share it. What the run did not cover:
+
+- Selecting a historical timeline in a diff view. The selector is disabled there,
+  and the run asserts that it is disabled.
+- A real second machine, a long-lived session, or a project with more than the
+  sample's five stories.
 
 ## Sub-features
 
@@ -106,10 +125,21 @@ empty fixture, or overlapping layout is a failed check, not a skipped assertion.
 Timeline selection is disabled during diff views. Record that limitation rather
 than claiming historical timeline selection was tested.
 
-No ready-made executable timeline browser journey is included here.
-Implement these actions in the existing Playwright setup or drive them with an
-available browser tool. Record the exact commands and selectors used.
-Static source inspection and unit tests cannot replace the browser evidence.
+A slice listed by two stories is owned by the last one in definition order.
+In the sample, `start-subscription` is also listed by the legacy
+**Subscription Checkout** story. After the join step is added, All stories draws
+it only under **Start subscription**, and the diff marks its nodes as changed
+because the owner changed. This predates timelines and is a follow-up, not a
+failed check.
+
+The right sidebar floats over the canvas. After a refresh that adds a story, the
+new story may sit under it. The viewport fits only when a timeline is selected.
+
+Timeline option labels include the feature file path and truncate in the select.
+Read option values from the DOM, as the script does.
+
+Boundary events from other stories render left of the timeline with long edges.
+This is expected.
 
 Keep screenshots for the branch, join, selected timeline, actor-filtered view,
 diagnostic, diff, and exported HTML. Retain ARIA snapshots, trace, recording,

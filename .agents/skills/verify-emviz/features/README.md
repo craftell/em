@@ -23,7 +23,8 @@ Never share a fixture, agent ID, port, or browser profile between verification r
 
 - [Inspect feature timelines](feature-timelines.md) covers branch and join layout,
   timeline selection, actor filtering, legacy compatibility, validation, diff,
-  and offline export. This new journey is a draft and remains unexecuted.
+  and offline export. It was executed on 2026-10-19 on top of `ec87e4a` and passed;
+  run it with `pnpm --filter @emviz/app test:browser:timelines`.
 
 ## Proof reporting
 

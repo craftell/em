@@ -18,6 +18,19 @@ The saved HTML (4/100 cases) and both live/saved diff inputs also run the same k
 
 Diff checks also compare the merged order with explicit input-derived IDs, assert remaining counts for every filter, and verify structured When content and reference/source identity while switching versions. Each selection checks that the summary and diagram geometry remain unchanged.
 
+## Feature timeline journey
+
+`tests/timelines.browser.mjs` runs the feature timeline journey against a disposable project. It copies this repository's `event-model/` into a temporary Git repository, installs the sample feature file from `docs/examples/`, starts the built CLI (`emviz open`) and drives Chromium with Playwright. It needs the built CLI and app, so build everything first.
+
+```sh
+pnpm build
+pnpm --filter @emviz/app test:browser:timelines
+```
+
+Set `EMVIZ_EVIDENCE_DIR` to keep evidence outside the worktree. The default is `artifacts/timelines` (ignored by Git). Each run writes a video, a trace, numbered screenshots, ARIA snapshots, `checks.json`, `verification.json`, `terminal.json` and `doctor.json`. The trace holds the session token, so do not share it.
+
+Covered: timeline selection, sibling stacking, successor placement, a join step after two predecessors, rapid selector changes, selection and search limits, Details navigation outside the timeline, actor filtering, `after`-only edits (canonical and rendered edges unchanged), session diff (selector disabled, all stories, layout notice), feedback on a feature-file slice, invalid files (schema version, missing step, cycle, repeated story, repeated slice, duplicate feature ID, incomplete header), removal of the feature file, and standalone export reopened from `file://` (live and diff) with no HTTP requests.
+
 ## Connection identity regression
 
 The live and saved-HTML suite now parses actual YAML with 12 slices sharing command, query, and scenario names. It verifies direct incoming/outgoing neighbors, navigation to the correct source file, copied connection context, unique canvas IDs, deduplicated references, and disconnected GWT nodes. Hand-built graph fixtures alone cannot catch parser-generated ID collisions.
