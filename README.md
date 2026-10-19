@@ -360,9 +360,11 @@ The [verify-emviz guide](.agents/skills/verify-emviz/SKILL.md) records the execu
 
 The [canvas navigation journey](.agents/skills/verify-emviz/features/canvas-navigation.md)
 and `pnpm --filter @emviz/app test:browser:navigation` cover the new acceptance
-requirements. They are authored but unexecuted for this change; prior-release
-verification does not establish a pass for edge modes, accordion persistence,
-or the new input behavior.
+requirements. At `af8f7c8`, all 19 Chromium navigation cases passed, including
+edge modes, scoped accordion persistence, proxy connections, input boundaries,
+and sidebar reachability. A separate built-CLI Chrome pass used a disposable
+project. Physical trackpads, native Safari gestures, and real macOS/Windows
+devices remain untested; the journey lists the exact coverage and evidence.
 
 ## Package Layout
 

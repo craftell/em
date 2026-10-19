@@ -115,7 +115,10 @@ gwt:
       const panel = page.getByRole("complementary", { name: "Node details" });
       for (const name of ["Slice1", "Slice11"]) {
         const command = project.nodes.find((node) => node.type === "command" && node.sourcePath === `event-model/features/${name}.slice.yaml`);
-        await page.locator(`[data-id="${command.id}"]`).click({ force: true });
+        await page.getByLabel("Search event model", { exact: true }).fill(command.sourcePath);
+        await page.locator(".search-results").getByRole("button", { name: "Save command", exact: true }).click();
+        await panel.getByRole("heading", { name: "Save", exact: true }).waitFor();
+        assert.ok((await panel.textContent()).includes(command.sourcePath));
         assert.deepEqual(await panel.locator(".connection-button").allTextContents(), [`${name} screen`, `${name}Saved`]);
         await panel.getByRole("button", { name: `${name}Saved`, exact: true }).click();
         assert.deepEqual(await panel.locator(".connection-button").allTextContents(), ["Save", "Status"]);
@@ -127,7 +130,9 @@ gwt:
         const context = await page.evaluate(() => window.copiedText);
         assert.ok(context.includes(`Incoming:\n- ${name}Saved -> Status\n\nOutgoing:\n- Status -> ${name} screen`));
         const scenario = project.nodes.find((node) => node.type === "gwt" && node.sourcePath === `event-model/features/${name}.slice.yaml`);
-        await page.locator(`[data-id="${scenario.id}"] .gwt-summary button`).first().click({ force: true });
+        await page.getByLabel("Search event model", { exact: true }).fill(scenario.sourcePath);
+        await page.locator(".search-results").getByRole("button", { name: "Same scenario gwt", exact: true }).first().click();
+        await panel.getByRole("heading", { name: "Same scenario", exact: true }).waitFor();
         assert.equal(await panel.locator(".connection-button").count(), 0);
       }
       const ids = await page.locator(".react-flow__node").evaluateAll((nodes) => nodes.map((node) => node.dataset.id));

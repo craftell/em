@@ -1,9 +1,65 @@
 # Inspect connections and navigate the canvas
 
-Status: authored, not executed for this change. Earlier feedback and timeline
-runs do not verify these controls. The automated entry point is
-`packages/app/tests/navigation.browser.mjs`; use the checklist below to identify
-remaining manual or platform-specific gaps, not to claim a pass from test names.
+Status: 19 Chromium regression cases passed on 2026-10-19 at `af8f7c8`, including
+all original nine cases. A separate real-server `chrome-devtools-axi` pass used
+an owned disposable three-story project. Physical trackpads, real macOS/Windows
+systems, and native Safari gestures were not tested. The checklist below remains
+the acceptance plan, not a claim that every platform and device path passed.
+
+## Executed coverage
+
+- Chromium checked Auto, Intra-slice only, All, all incident edges for a selected
+  slice, node-only cross edges, and canonical sidebar connection navigation.
+- Story checks covered individual and all-story controls, proxies, reload,
+  independent same-name legacy headers, explicit collapsed focus, stable-ID
+  rename, project/timeline scope, and malformed/invalid/unavailable storage.
+- Input checks covered Space-drag over a node and edge-label button, keyup,
+  synthetic window blur, normal clicks afterward, wheel/Shift-wheel/two-axis
+  pan, Ctrl-wheel zoom, native keyboard buttons, text input and sidebar scroll.
+- Meta-wheel and Safari-style gesture events were dispatched synthetically in
+  Chromium. Cursor anchoring was checked numerically, within one graph unit to
+  allow the browser's subpixel viewport rounding. These are not device tests.
+- Current and diff standalone exports retained modes, proxies, selection and
+  two-axis wheel pan without HTTP requests. Every gesture was not repeated in
+  each export or diff state.
+- Toolbar/sidebar access passed at 1440, 1280, 1024 and 680px. Open Actors choices
+  remained usable while normal sidebar clicks worked and the viewport transform
+  stayed unchanged.
+- The real-server Chrome pass confirmed canonical endpoints, selection-aware
+  Auto, all three modes, collapse/reload, a chronology-only unconnected story,
+  timeline preference isolation, and explicit focus on a collapsed summary.
+
+Evidence is under
+`/home/kfukuyama/fm-homes/personal/data/emviz-canvas-navigation/`.
+The successful navigation run is
+`final-navigation/navigation-2026-10-19T08-28-57-057Z/`, with `captures.json`,
+numbered screenshots, ARIA snapshots, viewport JSON, and per-page videos.
+`chrome-*.json`, `actor-popover-hit-fixed.json`, `final-real-navigation.json`,
+`final-expanded.png`, `final-collapsed.png`, and `actor-popover-fixed.png` record
+the separate built-CLI pass. `navigation-journey.mp4` joins the actual Chromium
+recordings for selection, modes, collapse, Space-drag, and wheel gestures.
+Earlier failed iterations are retained and are not passes.
+
+The existing app suite's old same-name YAML case used forced clicks on offscreen
+nodes and failed with the same symptom on clean `main` at `4e27ddd`. Its harness
+now selects by source-scoped search through visible controls. The two actor cases
+passed on clean main, exposed a product regression here, and were not edited.
+The corrected app suite passed all 17 cases. The final checks were:
+
+```sh
+pnpm check
+pnpm test
+pnpm skills:validate
+pnpm --filter @emviz/app test:browser:navigation
+pnpm --filter @emviz/app test:browser
+pnpm --filter @emviz/app test:browser:timelines
+node --test packages/app/tests/feedback.browser.mjs
+```
+
+The unit run passed 300 tests. Navigation passed 19, the app suite passed 17,
+and both real-server journeys passed. Twelve shared reference copies matched.
+These results cover production commit `af8f7c8` plus the app-suite search
+harness correction. Agent evals were not run.
 
 Read the [verification skill](../SKILL.md) for launch, doctor, evidence, and
 cleanup. Use disposable fixtures and an owned server or the browser suite's
@@ -15,10 +71,15 @@ Build the final app before running browser checks:
 
 ```sh
 pnpm build
-pnpm --filter @emviz/app test:browser:navigation
+EMVIZ_EVIDENCE_DIR=/path/outside/the/checkout \
+  pnpm --filter @emviz/app test:browser:navigation
 pnpm --filter @emviz/app test:browser
 pnpm --filter @emviz/app test:browser:timelines
 ```
+
+Build before starting the browser suites, not concurrently with them.
+The navigation entry point creates isolated intercepted fixtures. The feedback
+and timeline entry points use their own real-server disposable projects.
 
 Run the applicable unit, type, and skill checks too. Record the exact revision,
 commands, outcomes, and remaining gaps. A browser suite pass does not prove real
@@ -140,6 +201,16 @@ zoom, compare the graph coordinate beneath the pointer before and after zoom.
    mouse movement between panel and canvas, and repeated gestures.
 8. Repeat the core path in standalone HTML without network requests. Confirm
    the exported viewer retains edge modes, story controls, and input boundaries.
+
+## Remaining gaps
+
+The browser run did not separately prove every checklist permutation. Untested
+paths include real window-focus loss, pointer-release outside the browser,
+physical pinch/two-finger hardware, Safari's native event stream, removing and
+re-adding saved story IDs, persistence on every file-origin/browser combination,
+and every gesture under each timeline/actor/diff filter. The full real-server
+actor-registry and two-machine journeys keep their draft labels. Agent evals
+are authored expectations only; no documented cheap runner was found or run.
 
 ## Evidence and reporting
 

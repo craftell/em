@@ -40,11 +40,15 @@ pnpm build
 pnpm --filter @emviz/app test:browser:navigation
 ```
 
-Status for this change: authored, not executed. The historical results below
-do not establish a pass for these interactions. See the
-[canvas navigation verification journey](../../../.agents/skills/verify-emviz/features/canvas-navigation.md)
-for the full acceptance checklist and report the actual automated coverage
-separately from manual, operating-system, and physical-trackpad checks.
+Status: all 19 Chromium cases passed on 2026-10-19 at `af8f7c8`, including all
+original nine cases. Set `EMVIZ_EVIDENCE_DIR` to an outside-worktree directory to
+save per-page videos, screenshots, ARIA snapshots and viewport measurements.
+`captures.json` maps artifact IDs to test names. Set `EMVIZ_HEADED=1` to watch.
+Build before starting a browser run; concurrent builds can trigger Vite reloads.
+See the [canvas navigation verification journey](../../../.agents/skills/verify-emviz/features/canvas-navigation.md)
+for exact coverage, retained evidence and remaining platform/device gaps.
+Synthetic Meta-wheel and native-gesture events do not prove physical trackpads
+or Safari behavior.
 
 Required checks include:
 
@@ -65,6 +69,13 @@ Required checks include:
   Windows Ctrl+wheel zoom, two-axis trackpad pan and pinch, and unaffected sidebar
   scrolling.
 - Meaningful regression paths in Current, diff views, and offline exports.
+- Toolbar/sidebar hit targets at 1440, 1280, 1024 and 680px, including open
+  Actors choices. Controls must work with normal clicks, not forced clicks.
+
+The old same-name YAML identity case had an offscreen forced-click race that
+also failed on clean `main` at `4e27ddd`. It now uses visible source-scoped
+search for command and scenario selection. The two actor cases were not edited;
+the product layout fix restores their original normal-click paths.
 
 When a browser assertion compares all rendered domain edges, first choose
 **All** in **Edge visibility** and expand stories. The default Auto mode and

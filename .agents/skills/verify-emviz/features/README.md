@@ -30,9 +30,12 @@ Never share a fixture, agent ID, port, or browser profile between verification r
   Auto/Intra-slice only/All edge visibility, canonical sidebar connections, story
   accordions and project/timeline-scoped persistence, domain-only proxy edges,
   explicit focus, stable selection viewports, and mouse/trackpad input. This
-  journey is authored and unexecuted for this change; historical passes above
-  do not verify it. Run `pnpm --filter @emviz/app test:browser:navigation` and
-  report manual/platform gaps separately.
+  journey passed 19 Chromium cases on 2026-10-19 at `af8f7c8`, including the
+  original nine cases and toolbar/sidebar reachability checks. A separate
+  built-CLI Chrome pass confirmed core controls against a disposable project.
+  Run `pnpm --filter @emviz/app test:browser:navigation` with
+  `EMVIZ_EVIDENCE_DIR` set to retain fresh captures. Physical-device and native
+  Safari paths remain unexecuted; see the journey's coverage and gap lists.
 
 ## Proof reporting
 

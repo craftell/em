@@ -1,11 +1,11 @@
 # Inspect feature timelines
 
-Status: executed on 2026-10-19 on top of `ec87e4a` (PR #11) with
-`packages/app/tests/timelines.browser.mjs`. The run drove the built CLI and app in
-Chromium against a disposable project and passed. It passed again at `0c746e7` for
-the emviz 0.6.0 release candidate (20 recorded checks). Video, trace, screenshots,
-ARIA snapshots, and `checks.json` are kept outside the checkout; the PR description
-names their location. Earlier feedback evidence does not cover timelines.
+Status: the real-server timeline journey passed again on 2026-10-19 at `af8f7c8`
+with 20 recorded checks, after the toolbar/sidebar layout corrections. Evidence
+is under
+`/home/kfukuyama/fm-homes/personal/data/emviz-canvas-navigation/final-timelines/2026-10-19T08-28-57-017Z-2bf35863/`.
+It includes video, trace, screenshots, ARIA snapshots, and `checks.json`.
+Earlier passes at `ec87e4a` and `0c746e7` remain historical evidence.
 
 ## Run it
 
@@ -15,18 +15,19 @@ EMVIZ_EVIDENCE_DIR=/path/outside/the/checkout \
   pnpm --filter @emviz/app test:browser:timelines
 ```
 
-The historical script automated the original timeline journey and invalid cases.
-The edge-mode and accordion guidance below is new and unexecuted for this change;
-rerun the final script and record exactly which current paths it exercises.
-The trace holds the session token, so do not share it. What the historical run
-did not cover:
+The current script automates timeline selection, invalid cases, and full-edge
+comparisons with **All** and expanded stories. The separate navigation suite
+passed mode, accordion, scoped-persistence and proxy checks. Do not infer that
+every gesture and filter combination was repeated inside the timeline script.
+The trace holds the session token, so do not share it. Remaining timeline gaps:
 
 - Selecting a historical timeline in a diff view. The selector is disabled there,
   and the run asserts that it is disabled.
 - A real second machine, a long-lived session, or a project with more than the
   sample's five stories.
-- Edge visibility modes, story accordions/persistence, domain-only proxy edges,
-  and the new canvas input model; see [canvas navigation](canvas-navigation.md).
+- Every combination of edge modes, accordion state, and input gestures within
+  each timeline; see [canvas navigation](canvas-navigation.md) for the cases
+  that actually ran.
 
 ## Sub-features
 
