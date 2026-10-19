@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import fg from "fast-glob";
 import YAML from "yaml";
+import { parseScreenLink } from "./screen-link.js";
+export { safeScreenUrl } from "./screen-link.js";
 import { documentIssues, parseFeatureFiles } from "./features.js";
 import { loadActors, parseActorReferences } from "./actors.js";
 export { actorColor } from "./actors.js";
@@ -37,6 +39,7 @@ type RawSlice = {
   screen?: {
     type?: unknown;
     name?: unknown;
+    url?: unknown;
     actors?: unknown;
     reads?: unknown;
     executes?: unknown;
@@ -148,6 +151,7 @@ function parseScreen(raw: RawSlice["screen"]): ScreenModel {
     type: raw?.type === "system" ? "system" : "user",
     name: typeof raw?.name === "string" ? raw.name : undefined,
     ...parseActorReferences(raw?.actors),
+    ...parseScreenLink(raw).link,
     reads: asStringArray(raw?.reads),
     executes: asStringArray(raw?.executes)
   };

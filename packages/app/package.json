@@ -10,7 +10,8 @@
     "test": "vitest run --passWithNoTests",
     "test:browser": "node --test tests/gwt.browser.mjs",
     "test:browser:timelines": "node --test tests/timelines.browser.mjs",
-    "test:browser:navigation": "node --test tests/navigation.browser.mjs"
+    "test:browser:navigation": "node --test tests/navigation.browser.mjs",
+    "test:browser:links": "node --test tests/links.browser.mjs"
   },
   "dependencies": {
     "@emviz/parser": "workspace:*",

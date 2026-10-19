@@ -161,3 +161,28 @@ it("retains old content for every changed node and treats an edge label edit as 
   event.fields = "mutated again";
   expect(result.diff.previousNodes?.[event.id].fields).toBe(old.fields);
 });
+
+it.each(["url"] as const)("tracks screen %s additions, edits, removals and previous values", (field) => {
+  const project = (value?: string) => loadEventModelProjectFromFiles([
+    { path: "event-model/events.yaml", content: "events: {}\n" },
+    { path: "event-model/features/example.slice.yaml", content: `slice: Example\nscreen:\n  name: Checkout\n${value === undefined ? "" : `  ${field}: ${value}\n`}` }
+  ]);
+  for (const [oldValue, newValue] of [
+    [undefined, "https://example.com/first"],
+    ["https://example.com/first", "https://example.com/second"],
+    ["https://example.com/first", undefined]
+  ]) {
+    const base = project(oldValue);
+    const target = project(newValue);
+    const screen = target.nodes.find((node) => node.type === "screen")!;
+    const result = diffEventModelProjects(base, target);
+    expect(result.diff.nodeStatus[screen.id]).toBe("changed");
+    expect(result.diff.previousNodes?.[screen.id][field]).toBe(oldValue);
+    expect(result.project.nodes.find((node) => node.id === screen.id)?.[field]).toBe(newValue);
+    expect(result.diff.summary.nodes.changed).toBe(1);
+    expect(result.diff.summary.nodes.added).toBe(0);
+    expect(result.diff.summary.nodes.removed).toBe(0);
+  }
+  const unchanged = project("https://example.com/same");
+  expect(diffEventModelProjects(unchanged, unchanged).diff.summary.nodes.changed).toBe(0);
+});

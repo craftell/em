@@ -90,6 +90,10 @@ and edge fields are present.
    When a registry exists, propose its new entries with new screen references. Prefer a merge proposal
    over a rewrite, because the model is a domain artifact rather than a generated
    cache.
+   Preserve user-authored `screen.url` values. Propose new links only from
+   explicit design references, never from guessed Figma URLs. Use an absolute
+   HTTP or HTTPS URL on user screens only. Do not open destinations as part
+   of extraction.
 10. Mark uncertainty explicitly:
    - `confirmed`: directly evidenced by code/graph
    - `inferred`: likely but not directly named

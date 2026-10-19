@@ -19,6 +19,7 @@ import { apiFetch } from "./api";
 import { buildFieldFlows, fieldFlowEdgeIdsForField, parseFieldNames } from "./fieldFlow";
 import { toFlow } from "./layout";
 import { CanvasNavigation } from "./CanvasNavigation";
+import { ScreenLink } from "./ScreenLink";
 import { browserImportRoot, canvasStorageKey, readCollapsedStories, stableStoryId, writeCollapsedStories } from "./canvasState";
 import { timelineForView } from "./timeline";
 import { actorOptions, pruneActorFilter, screenActors, type ActorFilter } from "./actors";
@@ -138,7 +139,7 @@ function EventModelNode({ data }: NodeProps) {
     <div className={`em-node em-node-${node.type} ${nodeData.selected ? "selected" : ""} ${nodeData.connected ? "connected" : ""} ${nodeData.diffStatus ? `diff-node-${nodeData.diffStatus}` : ""}`}>
       <NodeHandles />
       {diffBadge}
-      <div className="node-type">{node.type}</div>
+      <div className="node-heading"><div className="node-type">{node.type}</div><ScreenLink node={node} compact /></div>
       <div className="node-label">{node.label}</div>
       <ActorChips node={node} />
     </div>
@@ -717,6 +718,7 @@ function SourcePanel({
       </section> : null}
       <div className="meta-row"><span>Type</span><strong>{selectedNode.type}</strong></div>
       <ActorChips node={selectedNode} />
+      <ScreenLink node={selectedNode} />
       <div className="meta-row"><span>Reference</span><code>{reference}</code></div>
       {selectedNode.sourcePath ? <div className="meta-row"><span>Source</span><code>{selectedNode.sourcePath}</code></div> : null}
       <details className="copy-section">

@@ -24,6 +24,12 @@
       "prompt": "Draft a new feature from this codebase alongside existing headerless standalone stories. Several functions run sequentially, but there is no evidence of a domain event between them. Do not write files yet.",
       "expected_output": "Proposes feature stories and timelines with confidence labels and stable IDs, keeps existing legacy documents, and distinguishes layout after from domain causality. Does not invent events or duplicate existing stories. Does not write model or extraction state before authorization.",
       "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Update this existing model from changed code. A user screen has a manually supplied Figma screen.url. A system processor has a monitoring-page link in code. Propose changes only.",
+      "expected_output": "Preserves the existing screen.url decision, does not infer Figma URLs from code, and proposes no screen.url for system processors. Labels missing design evidence as a question rather than inventing URLs. Does not write YAML or open destinations.",
+      "files": []
     }
   ]
 }

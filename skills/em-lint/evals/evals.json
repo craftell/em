@@ -18,6 +18,12 @@
       "prompt": "Lint legacy headerless story, slice, events, and actors files together with new feature files. Include one legacy file with only kind, another with the wrong kind, one with schema_version 2, and a feature without headers. A valid feature reuses stories across separate timelines.",
       "expected_output": "Accepts headerless legacy documents and reuse across timelines. Reports F1 for incomplete header pairs, mismatched kinds, unsupported versions, and missing required feature headers. Does not require headers on every legacy file or reject valid cross-timeline reuse.",
       "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Lint user screens with valid HTTP and HTTPS screen.url values, omitted URLs, ./design, javascript:alert(1), arrays, null, empty strings, credentials, whitespace, backslashes, and a system screen with url, plus https://example.com/design?owner=a@b.com. Do not edit or open destinations.",
+      "expected_output": "Accepts omitted fields and valid user-screen HTTP(S) URL strings, including one whose query or fragment contains @. Reports L10 with owning file and field for invalid schemes, relative paths, malformed values, whitespace/control/backslash, credentials including empty userinfo, missing absolute authority, and url on a system screen. Does not trim, open, or silently repair values.",
+      "files": []
     }
   ]
 }

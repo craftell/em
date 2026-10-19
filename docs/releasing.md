@@ -2,33 +2,46 @@
 
 `emviz` releases use npm trusted publishing, GitHub Actions, provenance, and npm staged publishing. CI can stage a package, but a maintainer must approve the staged package with npm 2FA before it becomes live.
 
-## Normal release
+## Normal release from a versioned PR
 
-Run one command from a clean `main` worktree:
+Each fix or feature PR includes the appropriate version bump, current CLI pins,
+and release notes. Merge that PR before preparing its release tag. Do not run
+`pnpm release:patch`, `pnpm release:minor`, or `pnpm release:major` after merging
+an already bumped version. Those commands bump it again.
 
-```sh
-pnpm release:patch
-```
-
-Use `pnpm release:minor` or `pnpm release:major` when appropriate.
-
-The release script:
-
-1. Checks that the git worktree is clean.
-2. Bumps `packages/cli/package.json`.
-3. Updates `pnpm-lock.yaml`.
-4. Runs `pnpm release:dry`.
-5. Commits the version bump.
-6. Creates an `emviz-vX.Y.Z` tag.
-7. Prints the command to push `main` and the release tag. It does not push automatically.
-
-Run the printed command manually, for example:
+From an up-to-date, clean `main` worktree, inspect the version and verify the
+release artifact:
 
 ```sh
-git push --atomic origin main emviz-vX.Y.Z
+git status --short
+node -p "require('./packages/cli/package.json').version"
+pnpm release:dry
 ```
 
-Pushing the tag triggers npm staged publishing. A GitHub Release is optional and does not approve npm publication.
+Confirm the version matches `docs/releases/<version>.md` and has not already
+been released. When authorized to release, create and push its matching tag.
+Replace X.Y.Z with the inspected version:
+
+```sh
+git tag emviz-vX.Y.Z
+git push origin emviz-vX.Y.Z
+```
+
+For a PR that prepared 0.8.0, the matching tag is `emviz-v0.8.0`; do not bump to
+0.8.1 just to create that tag. Never move an existing published tag.
+
+Pushing the tag triggers npm staged publishing. Merging the PR alone does not
+trigger publishing. A GitHub Release is optional and does not approve npm
+publication.
+
+## Legacy local version preparation
+
+The `release:patch`, `release:minor`, and `release:major` scripts remain available
+for explicitly requested local preparation when the version has not already
+been bumped. They require a clean `main` worktree, bump the CLI version, refresh
+the lockfile, run `release:dry`, create a commit and tag, and print a push command.
+They do not push automatically. Do not use them for the normal versioned-PR
+flow above. Review and update release notes and CLI pins before any publication.
 
 ## Approve staged package
 

@@ -13,7 +13,7 @@ Severity legend: **E** = error, **W** = warning, **I** = info.
 - [Actors](#actors) - A1
 - [Feature documents](#feature-documents) - F1
 - [Stories](#stories) — S1–S4
-- [Slice schema](#slice-schema) — L1–L9
+- [Slice schema](#slice-schema) — L1–L10
 - [Within-slice references](#within-slice-references) — W1–W2
 - [Cross-slice graph](#cross-slice-graph) — G1–G3, G4a, G4b, G5–G7
 - [Domain-event validity](#domain-event-validity) — D1–D5
@@ -199,6 +199,21 @@ Allowed: `event`, `command`, `query`, `error`.
 whitespace-normalized; a duplicate is a hard error.
 
 **Finding**: `<path>:<line>` lists `<name>` twice in `<list>`.
+
+### L10 — screen URLs are valid (E)
+
+Check each supplied `screen.url`. The value must be a nonempty string with
+an absolute HTTP or HTTPS URL, and belong only to `screen.type: user`.
+Reject whitespace, control characters, backslashes, credentials including empty
+user information, and URLs without an absolute authority.
+
+Report L10 with the slice path and field for malformed URLs, relative or local
+paths, unsupported schemes, non-string values, or `url` on system screens.
+Omitted URLs remain valid. Do not trim or repair values silently.
+
+Validate syntax without opening the destination. A valid URL does not prove
+remote availability or access permission. An unavailable or private destination
+is distinct from a schema error.
 
 ## Within-slice references
 

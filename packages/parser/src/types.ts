@@ -44,6 +44,7 @@ export type StoryModel = {
 export type ScreenModel = {
   type: ScreenType;
   name?: string;
+  url?: string;
   actors: string[];
   actorIssues?: string[];
   reads: string[];
@@ -112,6 +113,7 @@ export type GraphNode = {
   actors?: string[];
   actorDefinitions?: ActorDefinition[];
   screenType?: ScreenType;
+  url?: string;
   fields?: string;
   description?: string;
   given?: GwtItemRef[];

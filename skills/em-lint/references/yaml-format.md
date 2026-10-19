@@ -52,6 +52,7 @@ Any other top-level key produces a parser warning. Two keys are **hard errors**:
 screen:
   type: user           # 'user' | 'system' (required)
   name: Sign Up        # optional display label; defaults to "Screen" / "Processor"
+  url: https://www.figma.com/design/example/Sign-Up # optional external link, user only
   actors:              # optional: actor IDs associated with this screen (user type only)
     - Customer
   reads:               # optional: query names this screen consults
@@ -67,6 +68,23 @@ screen:
 - Names in `reads`/`executes` must match `queries[].name` / `commands[].name`
   **in the same slice** (case-insensitive, whitespace-normalized). Cross-slice
   `screen.reads` references are not supported and will cause a hard parse failure.
+
+### Screen links
+
+`screen.url` is an optional nonempty string on user screens only. It accepts
+an absolute HTTP or HTTPS URL, including a Figma design link. The field does
+not change graph connections or require a schema-version migration.
+
+The value must have an absolute authority and contain no whitespace, control
+characters, backslashes, or credentials, including empty user information.
+The parser does not trim values. Relative paths, local files, unsupported
+schemes, non-string values, and `url` on system screens produce L10 validation
+findings. Rejected links are omitted from the parsed screen and graph, while
+the rest of the model remains available for inspection.
+
+The viewer's top-right screen link and Details reference link open the URL in
+a new tab. Export preserves the URL without downloading the destination.
+The linked page still requires its host's availability and authentication.
 
 ### Commands
 

@@ -142,6 +142,7 @@ function comparableNode(node: GraphNode): Record<string, unknown> {
     actors: node.actors,
     actorDefinitions: node.actorDefinitions,
     screenType: node.screenType,
+    url: node.url,
     fields: node.fields,
     description: node.description,
     given: node.given,
