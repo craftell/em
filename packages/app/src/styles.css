@@ -1751,10 +1751,10 @@ pre {
   }
 }
 
-.actor-filter { position: relative; white-space: nowrap; }
+.actor-filter { white-space: nowrap; }
 .actor-filter summary { padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 7px; cursor: pointer; font-size: 12px; }
 .actor-filter summary:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.actor-filter-popover { position: relative; width: 270px; margin-top: 8px; padding: 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #fff; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16); white-space: normal; }
+.actor-filter-popover { position: absolute; top: calc(100% + 8px); right: min(max(0px, calc(346px - (100vw - 100%) / 2)), max(0px, calc(100% - 270px))); width: 270px; padding: 12px; border: 1px solid #d8dee8; border-radius: 8px; background: #fff; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.16); white-space: normal; }
 .actor-filter-popover p { margin: 0 0 8px; color: #64748b; font-size: 12px; }
 .actor-filter-options { display: grid; gap: 5px; max-height: min(360px, 55vh); overflow-y: auto; margin-bottom: 10px; }
 .actor-filter-options label { display: flex; align-items: center; gap: 8px; padding: 5px 0; cursor: pointer; font-size: 13px; overflow-wrap: anywhere; }

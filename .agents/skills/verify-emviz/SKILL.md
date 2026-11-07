@@ -117,10 +117,10 @@ screenshot, ARIA snapshot, and viewport measurement per page. `captures.json`
 maps artifact IDs to test names. Set `EMVIZ_HEADED=1` for a visible browser.
 Do not build during a browser run; Vite can reload the page mid-assertion.
 
-The toolbar reserves its actual wrapped height. Open Actors content also takes
-layout space, so sidebar tabs and actions stay reachable without closing the
-actor choices. The navigation suite checks normal clicks at 1440, 1280, 1024,
-and 680px, plus open-Actors sidebar access without camera-transform changes.
+The toolbar reserves its actual wrapped height. Actors choices float over the
+canvas without changing that height. The navigation suite checks normal clicks
+at 1440, 1280, 1024, and 680px, plus open-Actors sidebar access and unchanged
+toolbar height at 1440, 1024, and 680px without camera-transform changes.
 Never force-click an obscured control to turn a failed journey into a pass.
 
 On 2026-11-07 an isolated real-server timeline run checked the header after
@@ -129,6 +129,11 @@ selecting Onboarding overview and the Customer actor. The counts were 3 stories,
 with the actor selected. Chrome captures before and after the layout fix are in
 `/home/kfukuyama/fm-homes/personal/data/emviz-header-counts-actors/`. The full
 registry-edit actor journey remains unexecuted.
+
+The same fixture reproduced an Actors dropdown growing the toolbar from 59 to
+about 294 pixels. After the fix, Chrome measured 59 pixels in both states and
+captured `dropdown-before-open.png` and `dropdown-after-open.png` in that
+directory. The navigation suite also checked the overlay at three widths.
 
 Also rerun the existing browser and timeline suites. The
 [canvas navigation journey](features/canvas-navigation.md) is the acceptance

@@ -230,19 +230,24 @@ test("open Actors stays usable without covering sidebar controls or moving the v
   const { page, errors } = await open();
   try {
     const filter = page.locator(".actor-filter");
-    await unchanged(page, async () => {
-      await filter.locator("summary").click();
-      await filter.getByRole("checkbox", { name: "member", exact: true }).check();
-    }, "opening and choosing Actors");
-    const popover = await page.locator(".actor-filter-popover").boundingBox();
-    const panel = await page.getByRole("complementary", { name: "Node details" }).boundingBox();
-    assert.ok(panel.y >= popover.y + popover.height, "sidebar actions must remain below the open Actors controls");
-    await unchanged(page, async () => {
-      await page.getByRole("tab", { name: "Agent", exact: true }).click();
-      await page.getByRole("tab", { name: "Details", exact: true }).click();
-      assert.equal(await filter.getByRole("checkbox", { name: "member", exact: true }).isChecked(), true);
-      await filter.locator("summary").click();
-    }, "sidebar access with Actors open");
+    for (const width of [1440, 1024, 680]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const closed = await page.locator(".toolbar").boundingBox();
+      await unchanged(page, async () => {
+        await filter.locator("summary").click();
+        const open = await page.locator(".toolbar").boundingBox();
+        assert.ok(Math.abs(open.height - closed.height) < 1, "opening Actors must not change toolbar height at " + width);
+        await filter.getByRole("checkbox", { name: "member", exact: true }).check();
+        const popover = await page.locator(".actor-filter-popover").boundingBox();
+        const panel = await page.getByRole("complementary", { name: "Node details" }).boundingBox();
+        assert.ok(popover.x >= 0 && popover.x + popover.width <= panel.x + 1, "Actors choices must remain on screen and outside the sidebar at " + width);
+        await page.getByRole("tab", { name: "Agent", exact: true }).click();
+        await page.getByRole("tab", { name: "Details", exact: true }).click();
+        await filter.locator("summary").click();
+        const restored = await page.locator(".toolbar").boundingBox();
+        assert.ok(Math.abs(restored.height - closed.height) < 1, "closing Actors must restore the toolbar height at " + width);
+      }, "Actors and sidebar at width " + width);
+    }
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

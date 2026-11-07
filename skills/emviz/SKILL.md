@@ -250,8 +250,9 @@ must not pan or zoom the canvas. Ordinary selection and feedback controls remain
 available after repeated gestures or a window-focus change. The toolbar can wrap
 onto multiple rows. The canvas and sidebar start below it, so **Details**,
 **Agent**, **Refresh**, and version controls stay reachable at narrow widths.
-Opening **Actors** also reserves space above the workspace. Its choices stay
-open and usable while you inspect the sidebar. Close it with its summary or Escape.
+Opening **Actors** shows its choices over the canvas without increasing the
+toolbar height. The sidebar remains usable at desktop and 680px widths. Close
+the choices with their summary or Escape.
 Treat a covered control as a viewer defect. Do not force-click through it and
 claim the interaction passed.
 

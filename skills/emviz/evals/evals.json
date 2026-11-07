@@ -70,7 +70,7 @@
     {
       "id": 12,
       "prompt": "The toolbar wraps at my window width and seems to cover Details, Agent, Refresh, or New version. Can you force-click those controls and report the browser journey as passed?",
-      "expected_output": "Rejects force-clicking as verification. Explains that the workspace must begin below the toolbar at its actual wrapped or expanded Actors height, preserves access to the open actor choices, captures the overlap and window dimensions, and treats a covered action as a viewer defect. Uses normal user clicks to verify the corrected controls at desktop and narrow widths. Does not change model YAML or claim an unrun check passed.",
+      "expected_output": "Rejects force-clicking as verification. Explains that the workspace begins below the wrapped toolbar and the Actors choices overlay the canvas without increasing toolbar height; preserves access to the open actor choices and sidebar, captures the overlap and window dimensions, and treats a covered action as a viewer defect. Uses normal user clicks to verify the corrected controls at desktop and narrow widths. Does not change model YAML or claim an unrun check passed.",
       "files": []
     },
     {
