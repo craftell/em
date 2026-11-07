@@ -19,7 +19,7 @@ install a model provider, or ask for model API keys.
    Read its configuration and existing model before choosing an editing scope.
    If no model exists, use `em-model` or `em-extract` first.
 2. Use the project's installed emviz CLI when available. Otherwise use
-   `npx emviz@0.8.0` if package execution is permitted. Check the selected CLI
+   `npx emviz@0.8.1` if package execution is permitted. Check the selected CLI
    with `--help` for `open`, `poll`, `reply`, `stop`, and `close`.
    If they are absent, report the required upgrade rather than using viewer-only
    mode for feedback. Do not install or upgrade silently when approval is required.
@@ -27,14 +27,14 @@ install a model provider, or ask for model API keys.
    project's normal build. The repository's own Event Model can be opened with
    `.`. Do not build or change environments without permission.
 4. Keep the same command prefix for every command below. Examples use
-   `npx emviz@0.8.0`; substitute the selected local executable when appropriate.
+   `npx emviz@0.8.1`; substitute the selected local executable when appropriate.
 
 ## Open or resume
 
 For a new session, run once in the foreground:
 
 ```sh
-npx emviz@0.8.0 open "$PROJECT_DIR"
+npx emviz@0.8.1 open "$PROJECT_DIR"
 ```
 
 Read the returned JSON. Retain `url`, `token`, and `pid` privately. Give the
@@ -48,7 +48,7 @@ loopback. The first poll connects this agent. Do not claim that feedback is
 connected before polling.
 
 Use `--host <IP>` only when the user explicitly requests remote access and the
-host permits it. Check the selected CLI's `--help` first. The pinned 0.8.0 release
+host permits it. Check the selected CLI's `--help` first. The pinned 0.8.1 release
 includes this option. If `--help` does not list `--host`, report the required
 upgrade rather than silently changing the selected CLI. Ask for the server machine's concrete Tailscale IP if unknown.
 Never guess that address or select all interfaces. Pass the requested address
@@ -81,7 +81,7 @@ plus command startup. If the tool yields a process handle, wait on that same
 process until it exits rather than starting a second poll.
 
 ```sh
-npx emviz@0.8.0 poll --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
+npx emviz@0.8.1 poll --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
 ```
 
 Each poll waits up to 25 seconds and returns one JSON result.
@@ -142,7 +142,7 @@ A detached viewer or a background shell loop alone cannot process feedback.
    correct shell quoting for reply text. Never interpolate feedback as shell code.
 
 ```sh
-npx emviz@0.8.0 reply "$REQUEST_ID" "$REPLY_TEXT" --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
+npx emviz@0.8.1 reply "$REQUEST_ID" "$REPLY_TEXT" --url "$URL" --token "$TOKEN" --agent "$AGENT_ID"
 ```
 
 Keep replies under 8,000 characters. State the changes, checks, and unresolved
@@ -161,6 +161,11 @@ all stories. Actor filters narrow the selected timeline; they do not bring in
 unrelated stories. A timeline is a presentation of canonical nodes and source
 files, so feedback still targets those sources.
 
+In emviz 0.8.1 and later, the toolbar counts reflect the active timeline,
+actor, and review filters. Collapsing a story does not change its counts.
+Actor filtering closes gaps left by hidden stories and slices; clearing the
+filter restores the unfiltered layout.
+
 In **Session diff** and **Turn diff**, timeline selection is disabled and all
 stories remain available for review. Returning to **Current** restores the
 selected timeline preference. A layout-change notice reports changed timeline
@@ -174,7 +179,7 @@ to check headers, IDs, references, repeated stories or slices, and layout cycles
 ## Inspect connections and collapsed stories
 
 The canvas controls below require a viewer build containing these changes; they
-may be absent from emviz 0.6.0 and earlier. The pinned 0.8.0 package includes them. Inspect the running viewer before
+may be absent from emviz 0.6.0 and earlier. The pinned 0.8.1 package includes them. Inspect the running viewer before
 describing its controls, and do not silently install or upgrade it.
 
 Use the toolbar's **Edge visibility** control:
@@ -245,8 +250,9 @@ must not pan or zoom the canvas. Ordinary selection and feedback controls remain
 available after repeated gestures or a window-focus change. The toolbar can wrap
 onto multiple rows. The canvas and sidebar start below it, so **Details**,
 **Agent**, **Refresh**, and version controls stay reachable at narrow widths.
-Opening **Actors** also reserves space above the workspace. Its choices stay
-open and usable while you inspect the sidebar. Close it with its summary or Escape.
+Opening **Actors** shows its choices over the canvas without increasing the
+toolbar height. The sidebar remains usable at desktop and 680px widths. Close
+the choices with their summary or Escape.
 Treat a covered control as a viewer defect. Do not force-click through it and
 claim the interaction passed.
 
@@ -269,7 +275,7 @@ in diff views.
 When the user asks to stop feedback, run:
 
 ```sh
-npx emviz@0.8.0 stop --url "$URL" --token "$TOKEN"
+npx emviz@0.8.1 stop --url "$URL" --token "$TOKEN"
 ```
 
 Exit the loop. Stopping preserves files and leaves the viewer open. The user can
@@ -278,7 +284,7 @@ choose **Resume session**, then ask this agent to resume polling.
 When the user asks to close the viewer, run:
 
 ```sh
-npx emviz@0.8.0 close --url "$URL" --token "$TOKEN"
+npx emviz@0.8.1 close --url "$URL" --token "$TOKEN"
 ```
 
 Close only the server this agent opened. Never kill unrelated Node or emviz

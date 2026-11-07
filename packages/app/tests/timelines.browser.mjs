@@ -230,6 +230,7 @@ test("a user selects, reviews, exports and validates feature timelines", { timeo
 
     // 1. Select Onboarding overview: sibling stacking and successor placement.
     await chooseTimeline("Onboarding overview");
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n3 stories\n3 slices\n6 events");
     assert.equal(await present(ids.stress), false, "stories outside the timeline must leave the canvas");
     const register = await box(ids.register);
     const welcome = await box(ids.welcome);
@@ -311,6 +312,7 @@ test("a user selects, reviews, exports and validates feature timelines", { timeo
     await page.locator(".actor-filter summary").click();
     await page.getByRole("group", { name: "Filter by actor" }).getByLabel("Customer", { exact: true }).check();
     await settle();
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n2 stories\n2 slices\n6 events");
     assert.equal(await present(ids.stress), false, "the timeline still bounds the actor-filtered view");
     assert.equal(await present(ids.legacy), false);
     await capture("05-overview-actor-filtered");

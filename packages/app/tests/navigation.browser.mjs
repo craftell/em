@@ -204,23 +204,50 @@ test("wrapped toolbars leave sidebar tabs and actions reachable at desktop and n
   } finally { await page.close(); }
 });
 
+test("actor filtering closes gaps left by hidden stories and updates counts", async () => {
+  const project = () => {
+    const fixture = model();
+    fixture.nodes.find((node) => node.id === "screen-0").actors = ["visitor"];
+    return fixture;
+  };
+  const { page } = await open({ project });
+  try {
+    await page.locator(".actor-filter summary").click();
+    const first = await node(page, "story-0").boundingBox();
+    await page.getByLabel("member", { exact: true }).check();
+    assert.equal(await node(page, "story-0").count(), 0);
+    const remaining = await node(page, "story-1").boundingBox();
+    assert.ok(Math.abs(first.y - remaining.y) < 1, "the remaining story fills the hidden story's space");
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n1 stories\n1 slices\n2 events");
+    await page.getByRole("button", { name: "Clear actors" }).click();
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n2 stories\n2 slices\n2 events");
+  } finally {
+    await page.close();
+  }
+});
+
 test("open Actors stays usable without covering sidebar controls or moving the viewport", async () => {
   const { page, errors } = await open();
   try {
     const filter = page.locator(".actor-filter");
-    await unchanged(page, async () => {
-      await filter.locator("summary").click();
-      await filter.getByRole("checkbox", { name: "member", exact: true }).check();
-    }, "opening and choosing Actors");
-    const popover = await page.locator(".actor-filter-popover").boundingBox();
-    const panel = await page.getByRole("complementary", { name: "Node details" }).boundingBox();
-    assert.ok(panel.y >= popover.y + popover.height, "sidebar actions must remain below the open Actors controls");
-    await unchanged(page, async () => {
-      await page.getByRole("tab", { name: "Agent", exact: true }).click();
-      await page.getByRole("tab", { name: "Details", exact: true }).click();
-      assert.equal(await filter.getByRole("checkbox", { name: "member", exact: true }).isChecked(), true);
-      await filter.locator("summary").click();
-    }, "sidebar access with Actors open");
+    for (const width of [1440, 1024, 680]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const closed = await page.locator(".toolbar").boundingBox();
+      await unchanged(page, async () => {
+        await filter.locator("summary").click();
+        const open = await page.locator(".toolbar").boundingBox();
+        assert.ok(Math.abs(open.height - closed.height) < 1, "opening Actors must not change toolbar height at " + width);
+        await filter.getByRole("checkbox", { name: "member", exact: true }).check();
+        const popover = await page.locator(".actor-filter-popover").boundingBox();
+        const panel = await page.getByRole("complementary", { name: "Node details" }).boundingBox();
+        assert.ok(popover.x >= 0 && popover.x + popover.width <= panel.x + 1, "Actors choices must remain on screen and outside the sidebar at " + width);
+        await page.getByRole("tab", { name: "Agent", exact: true }).click();
+        await page.getByRole("tab", { name: "Details", exact: true }).click();
+        await filter.locator("summary").click();
+        const restored = await page.locator(".toolbar").boundingBox();
+        assert.ok(Math.abs(restored.height - closed.height) < 1, "closing Actors must restore the toolbar height at " + width);
+      }, "Actors and sidebar at width " + width);
+    }
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
@@ -778,6 +805,7 @@ test("matching actor filters keep collapsed story summaries without a false empt
     await node(page, "screen-0").waitFor({ state: "detached" });
     await page.getByRole("button", { name: "Expand Alpha", exact: true }).waitFor();
     assert.equal(await page.locator(".actor-empty").count(), 0, "matched collapsed stories are not an empty actor result");
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n2 stories\n2 slices\n2 events");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
