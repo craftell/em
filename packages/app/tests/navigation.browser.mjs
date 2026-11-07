@@ -204,6 +204,28 @@ test("wrapped toolbars leave sidebar tabs and actions reachable at desktop and n
   } finally { await page.close(); }
 });
 
+test("actor filtering closes gaps left by hidden stories and updates counts", async () => {
+  const project = () => {
+    const fixture = model();
+    fixture.nodes.find((node) => node.id === "screen-0").actors = ["visitor"];
+    return fixture;
+  };
+  const { page } = await open({ project });
+  try {
+    await page.locator(".actor-filter summary").click();
+    const first = await node(page, "story-0").boundingBox();
+    await page.getByLabel("member", { exact: true }).check();
+    assert.equal(await node(page, "story-0").count(), 0);
+    const remaining = await node(page, "story-1").boundingBox();
+    assert.ok(Math.abs(first.y - remaining.y) < 1, "the remaining story fills the hidden story's space");
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n1 stories\n1 slices\n2 events");
+    await page.getByRole("button", { name: "Clear actors" }).click();
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n2 stories\n2 slices\n2 events");
+  } finally {
+    await page.close();
+  }
+});
+
 test("open Actors stays usable without covering sidebar controls or moving the viewport", async () => {
   const { page, errors } = await open();
   try {
@@ -778,6 +800,7 @@ test("matching actor filters keep collapsed story summaries without a false empt
     await node(page, "screen-0").waitFor({ state: "detached" });
     await page.getByRole("button", { name: "Expand Alpha", exact: true }).waitFor();
     assert.equal(await page.locator(".actor-empty").count(), 0, "matched collapsed stories are not an empty actor result");
+    assert.equal(await page.locator(".model-summary").innerText(), "emviz\n2 stories\n2 slices\n2 events");
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

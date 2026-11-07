@@ -123,6 +123,13 @@ actor choices. The navigation suite checks normal clicks at 1440, 1280, 1024,
 and 680px, plus open-Actors sidebar access without camera-transform changes.
 Never force-click an obscured control to turn a failed journey into a pass.
 
+On 2026-11-07 an isolated real-server timeline run checked the header after
+selecting Onboarding overview and the Customer actor. The counts were 3 stories,
+3 slices, and 6 events for the timeline, then 2 stories, 2 slices, and 6 events
+with the actor selected. Chrome captures before and after the layout fix are in
+`/home/kfukuyama/fm-homes/personal/data/emviz-header-counts-actors/`. The full
+registry-edit actor journey remains unexecuted.
+
 Also rerun the existing browser and timeline suites. The
 [canvas navigation journey](features/canvas-navigation.md) is the acceptance
 checklist, including storage failures, project/timeline isolation, explicit

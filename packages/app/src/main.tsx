@@ -1089,7 +1089,7 @@ function FlowWorkspace() {
       diffFilter,
       actorFilter,
       previousNodes: diff?.previousNodes
-    }) : { nodes: [], edges: [] },
+    }) : { nodes: [], edges: [], counts: { stories: 0, slices: 0, events: 0 } },
     [timelineId, edgeVisibility, collapsedStoryIds, actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
   );
   useEffect(() => {
@@ -1272,9 +1272,9 @@ function FlowWorkspace() {
       <header className="toolbar">
         <div className="model-summary">
           <strong>emviz</strong>
-          <span>{project.stories.length} stories</span>
-          <span>{project.slices.length} slices</span>
-          <span>{project.nodes.filter((node) => node.type === "event").length} events</span>
+          <span>{flow.counts.stories} stories</span>
+          <span>{flow.counts.slices} slices</span>
+          <span>{flow.counts.events} events</span>
         </div>
         {Boolean(project.timelines?.length) ? <label className="timeline-picker">
           <span>Timeline</span>

@@ -23,7 +23,7 @@ Connect the first screen's slice through an event to a system slice, then throug
 3. Confirm that the first system slice has a **Related** label and no actor chip. Confirm that the second system slice stays hidden.
 4. Add Support. Confirm OR selection includes the Support screen.
 5. Select **Unassigned screens** and verify that it matches only unassigned user screens.
-6. Clear the selection. Confirm that the full graph returns and node positions match the initial positions.
+6. Confirm the header counts match the filtered stories, slices, and events, and hidden stories leave no empty layout rows. Clear the selection and confirm that the full graph and its initial layout return.
 7. Combine actor selection with a diff filter. Confirm that existing hidden nodes stay hidden and no line has a hidden endpoint.
 8. Change an actor ID on a screen. In the diff view, select either the old or new actor and find the changed screen.
 9. Change the registry's display name and color. Confirm that **Old version** retains old values and **New version** shows the new values.
