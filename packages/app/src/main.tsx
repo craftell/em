@@ -11,6 +11,7 @@ import {
   useReactFlow,
   type EdgeProps,
   type NodeProps,
+  type NodeChange,
   Position
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -1075,8 +1076,22 @@ function FlowWorkspace() {
     }
     return edgeIds;
   }, [fieldFlows, hoveredEdgeId, project, selectedFieldName, selectedId]);
+  const [screenHeights, setScreenHeights] = useState<ReadonlyMap<string, number>>(new Map());
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const screenIds = new Set(project?.nodes.filter((node) => node.type === "screen").map((node) => node.id));
+    setScreenHeights((current) => {
+      const next = new Map(current);
+      for (const change of changes) {
+        if (change.type === "dimensions" && change.dimensions && screenIds.has(change.id)) {
+          next.set(change.id, change.dimensions.height);
+        }
+      }
+      return next.size === current.size && [...next].every(([id, height]) => current.get(id) === height) ? current : next;
+    });
+  }, [project]);
   const flow = useMemo(
     () => project ? toFlow(project, selectedId, {
+      screenHeights,
       timelineId: timelineForView(timelineId, Boolean(diff)),
       edgeVisibility,
       collapsedStoryIds,
@@ -1090,7 +1105,7 @@ function FlowWorkspace() {
       actorFilter,
       previousNodes: diff?.previousNodes
     }) : { nodes: [], edges: [], counts: { stories: 0, slices: 0, events: 0 } },
-    [timelineId, edgeVisibility, collapsedStoryIds, actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
+    [screenHeights, timelineId, edgeVisibility, collapsedStoryIds, actorFilter, diff?.previousNodes, diff?.edgeStatus, diff?.nodeStatus, diffFilter, fieldFlows, focusedEdgeIds, project, selectedFieldName, selectedId]
   );
   useEffect(() => {
     if (timelineId && project && !project.timelines?.some((item) => item.id === timelineId)) setTimelineId(undefined);
@@ -1437,6 +1452,7 @@ function FlowWorkspace() {
           edges={flow.edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
           onNodeClick={(_, node) => focusNode(node.id)}
           fitView
           minZoom={0.2}
