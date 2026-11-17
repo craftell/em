@@ -90,6 +90,12 @@
       "prompt": "After selecting a timeline and an actor, what do the header counts mean and where did the gaps between hidden stories go?",
       "expected_output": "Explains that the header counts stories, slices, and events allowed by the active timeline, actor, and review filters, including related context. Collapsing a story does not change the counts. Actor filtering closes gaps from hidden stories and slices; clearing it restores the unfiltered layout. Checks the viewer version and distinguishes authored eval expectations from actual runs.",
       "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "A long screen label wraps above a command. Should I shorten the model name to prevent overlap?",
+      "expected_output": "Checks the viewer version and explains that emviz 0.8.2 reserves space for wrapped screen labels. Does not shorten canonical names to fix display layout or claim unrun verification.",
+      "files": []
     }
   ]
 }

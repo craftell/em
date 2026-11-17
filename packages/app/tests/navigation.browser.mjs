@@ -809,3 +809,18 @@ test("matching actor filters keep collapsed story summaries without a false empt
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
+
+test("wrapped screen labels leave room above the next row", async () => {
+  const project = model();
+  project.nodes.find((node) => node.id === "screen-0").label = "HTTP の入口: GET /properties/{property}/reservations/{reservation}/history";
+  const { page } = await open({ project: () => project });
+  try {
+    const screen = await node(page, "screen-0").boundingBox();
+    for (const id of ["command-0", "query-0"]) {
+      const lower = await node(page, id).boundingBox();
+      assert.ok(screen.y + screen.height < lower.y, "screen must end above " + id);
+    }
+  } finally {
+    await page.close();
+  }
+});

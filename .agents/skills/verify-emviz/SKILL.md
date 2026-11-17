@@ -222,3 +222,7 @@ If the test reports a cleanup error, retain the project path and owned PID from 
 Both scripts have executable entry points. Use the explicit `node` commands above for consistent behavior.
 
 After a successful real run, update the tested revision and evidence location above. Use `/maintain-verification-skill` when that skill is available to keep the feature map aligned with future UI changes.
+
+## Wrapped screen labels
+
+On 2026-11-16, a disposable one-slice model with a four-line screen label and a command reproduced overlap in the built viewer. After the fix, the same viewer kept a gap between them. The Chrome captures are at `/home/kfukuyama/fm-homes/personal/data/emviz-long-screen-label-overlap/before.png` and `after.png`. The navigation browser test `wrapped screen labels leave room above the next row` covers the regression. This does not verify long labels on other node types.

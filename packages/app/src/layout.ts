@@ -87,6 +87,7 @@ type SliceMetrics = {
   commandIds: string[];
   eventIds: string[];
   gwtIds: string[];
+  screenOffset: number;
 };
 
 type StoryLayout = {
@@ -116,7 +117,7 @@ function eventNodesForSlice(project: EventModelProject, nodeById: Map<string, Pr
   return [...eventIds].map((id) => nodeById.get(id)).filter((node): node is ProjectNode => Boolean(node));
 }
 
-function buildSliceMetrics(project: EventModelProject, nodeById: Map<string, ProjectNode>): Map<string, SliceMetrics> {
+function buildSliceMetrics(project: EventModelProject, nodeById: Map<string, ProjectNode>, screenHeights: ReadonlyMap<string, number>): Map<string, SliceMetrics> {
   return new Map(
     project.slices.map((slice) => {
       const queries = sliceNodes(project, slice.path, "query");
@@ -129,13 +130,15 @@ function buildSliceMetrics(project: EventModelProject, nodeById: Map<string, Pro
       const eventRowWidth = rowWidth(events.length, NODE_WIDTH);
       const gwtRowWidth = gwts.length ? GWT_WIDTH : 0;
       const width = Math.max(MIN_SLICE_WIDTH, mainRowWidth + SLICE_PADDING_X * 2, eventRowWidth + SLICE_PADDING_X * 2, gwtRowWidth + SLICE_PADDING_X * 2);
-      const height = gwts.length > 0 ? GWT_ROW_Y + GWT_HEIGHT + 36 : MIN_SLICE_HEIGHT;
+      const screenOffset = Math.max(0, ...sliceNodes(project, slice.path, "screen").map((node) => (screenHeights.get(node.id) ?? NODE_HEIGHT) - NODE_HEIGHT));
+      const height = (gwts.length > 0 ? GWT_ROW_Y + GWT_HEIGHT + 36 : MIN_SLICE_HEIGHT) + screenOffset;
 
       return [
         slice.path,
         {
           width,
           height,
+          screenOffset,
           queryIds: queries.map((node) => node.id),
           commandIds: commands.map((node) => node.id),
           eventIds: events.map((node) => node.id),
@@ -291,6 +294,7 @@ export function toFlow(
     diffFilter?: "all" | "added" | "removed" | "changed";
     actorFilter?: ActorFilter;
     previousNodes?: Record<string, ProjectNode>;
+    screenHeights?: ReadonlyMap<string, number>;
   } = {}
 ): { nodes: Node<NodeData>[]; edges: Edge[]; counts: { stories: number; slices: number; events: number } } {
   const timeline = project.timelines?.find((item) => item.id === options.timelineId);
@@ -319,7 +323,7 @@ export function toFlow(
   const storyIndexes = storyIndex(layoutProject);
   const nodeById = new Map(project.nodes.map((node) => [node.id, node]));
   const layoutNodesById = new Map(layoutProject.nodes.map((node) => [node.id, node]));
-  const sliceMetrics = buildSliceMetrics(layoutProject, layoutNodesById);
+  const sliceMetrics = buildSliceMetrics(layoutProject, layoutNodesById, options.screenHeights ?? new Map());
   const existingSlicePaths = new Set(project.slices.map((slice) => slice.path));
   const sliceCounts = new Map(project.stories.map((story) => [
     stableStoryId(story), new Set(story.slices.filter((path) => existingSlicePaths.has(path))).size
@@ -406,16 +410,16 @@ export function toFlow(
     let currentX = origin.x + (sliceWidth - mainRowWidth) / 2;
 
     metrics.queryIds.forEach((id, index) => {
-      positions.set(id, { x: currentX + index * (NODE_WIDTH + ROW_GAP_X), y: origin.y + MAIN_ROW_Y });
+      positions.set(id, { x: currentX + index * (NODE_WIDTH + ROW_GAP_X), y: origin.y + MAIN_ROW_Y + metrics.screenOffset });
     });
     if (queryBandWidth > 0) currentX += queryBandWidth + (commandBandWidth > 0 ? MAIN_BAND_GAP_X : 0);
     metrics.commandIds.forEach((id, index) => {
-      positions.set(id, { x: currentX + index * (NODE_WIDTH + ROW_GAP_X), y: origin.y + MAIN_ROW_Y });
+      positions.set(id, { x: currentX + index * (NODE_WIDTH + ROW_GAP_X), y: origin.y + MAIN_ROW_Y + metrics.screenOffset });
     });
 
-    positionRow(metrics.eventIds, positions, origin, sliceWidth, EVENT_ROW_Y, NODE_WIDTH);
+    positionRow(metrics.eventIds, positions, origin, sliceWidth, EVENT_ROW_Y + metrics.screenOffset, NODE_WIDTH);
     for (const id of metrics.gwtIds) {
-      positions.set(id, { x: origin.x + (sliceWidth - GWT_WIDTH) / 2, y: origin.y + GWT_ROW_Y });
+      positions.set(id, { x: origin.x + (sliceWidth - GWT_WIDTH) / 2, y: origin.y + GWT_ROW_Y + metrics.screenOffset });
     }
   }
 
@@ -430,7 +434,7 @@ export function toFlow(
       }
       const origin = sliceOrigins.get(sliceKey(producer)) ?? { x: STORY_X, y: STORY_Y };
       const metrics = sliceMetrics.get(sliceKey(producer));
-      positions.set(event.id, { x: origin.x + ((metrics?.width ?? MIN_SLICE_WIDTH) - NODE_WIDTH) / 2, y: origin.y + EVENT_ROW_Y });
+      positions.set(event.id, { x: origin.x + ((metrics?.width ?? MIN_SLICE_WIDTH) - NODE_WIDTH) / 2, y: origin.y + EVENT_ROW_Y + (metrics?.screenOffset ?? 0) });
     }
   }
 
